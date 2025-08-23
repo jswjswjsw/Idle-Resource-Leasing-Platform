@@ -1,0 +1,165 @@
+# ==============================================
+# 阿里云部署配置文件
+# 支持ECS、函数计算、容器服务等多种部署方式
+# ==============================================
+
+# ECS 云服务器部署配置
+ecs_deployment:
+  # 服务器规格
+  instance_type: "ecs.t5-lc1m1.small"  # 突发性能型，适合小型应用
+  image_id: "centos_7_9_x64_20G_alibase_20210318.vhd"
+  system_disk_size: 40  # GB
+  
+  # 网络配置
+  security_group_rules:
+    - protocol: "TCP"
+      port_range: "22/22"
+      source_cidr: "0.0.0.0/0"  # SSH访问
+    - protocol: "TCP" 
+      port_range: "80/80"
+      source_cidr: "0.0.0.0/0"  # HTTP
+    - protocol: "TCP"
+      port_range: "443/443"
+      source_cidr: "0.0.0.0/0"  # HTTPS
+    - protocol: "TCP"
+      port_range: "5000/5000"
+      source_cidr: "0.0.0.0/0"  # 应用端口
+
+# RDS 数据库配置
+rds_deployment:
+  engine: "PostgreSQL"
+  engine_version: "13.0"
+  db_instance_class: "pg.n2.small.1"  # 1核1GB，免费试用
+  db_instance_storage: 20  # GB
+  database_name: "trade_platform"
+  username: "tradeuser"
+  
+# SLB 负载均衡配置
+slb_deployment:
+  load_balancer_spec: "slb.s1.small"  # 免费规格
+  listeners:
+    - protocol: "HTTP"
+      port: 80
+      backend_port: 5000
+    - protocol: "HTTPS"
+      port: 443
+      backend_port: 5000
+      ssl_certificate_id: "your-ssl-cert-id"
+
+# CDN 配置
+cdn_deployment:
+  domain_name: "your-domain.com"
+  source_type: "ipaddr"
+  source_content: "your-ecs-ip"
+  scope: "domestic"  # 国内加速
+  
+# OSS 对象存储配置  
+oss_deployment:
+  bucket_name: "trade-platform-files"
+  acl: "private"
+  storage_class: "Standard"
+  
+# 函数计算配置（可选）
+fc_deployment:
+  service_name: "trade-platform"
+  function_name: "api-handler" 
+  runtime: "nodejs14"
+  handler: "index.handler"
+  memory_size: 512  # MB
+  timeout: 60  # 秒
+
+# 容器服务配置（可选）
+ack_deployment:
+  cluster_type: "ManagedKubernetes"
+  kubernetes_version: "1.20.11-aliyun.1"
+  worker_instance_types: ["ecs.t5-lc1m1.small"]
+  num_of_nodes: 2
+  worker_system_disk_category: "cloud_efficiency"
+  worker_system_disk_size: 40
+
+# 环境变量配置
+environment_variables:
+  production:
+    NODE_ENV: "production"
+    
+    # 数据库连接
+    DATABASE_URL: "${rds_connection_string}"
+    
+    # Redis缓存（可使用阿里云Redis或自建）
+    REDIS_HOST: "${redis_host}"
+    REDIS_PORT: "6379"
+    REDIS_PASSWORD: "${redis_password}"
+    
+    # JWT配置
+    JWT_SECRET: "${jwt_secret}"
+    JWT_REFRESH_SECRET: "${jwt_refresh_secret}"
+    
+    # 高优先级服务
+    GITHUB_CLIENT_ID: "${github_client_id}"
+    GITHUB_CLIENT_SECRET: "${github_client_secret}"
+    AMAP_API_KEY: "${amap_api_key}"
+    ALIPAY_SANDBOX_APP_ID: "${alipay_app_id}"
+    ALIPAY_SANDBOX_PRIVATE_KEY: "${alipay_private_key}"
+    ALIPAY_SANDBOX_PUBLIC_KEY: "${alipay_public_key}"
+    
+    # 中优先级服务
+    ALIYUN_SMS_ACCESS_KEY_ID: "${sms_access_key_id}"
+    ALIYUN_SMS_ACCESS_KEY_SECRET: "${sms_access_key_secret}"
+    ALIYUN_SMS_SIGN_NAME: "交易平台"
+    GOOGLE_CLIENT_ID: "${google_client_id}"
+    GOOGLE_CLIENT_SECRET: "${google_client_secret}"
+    
+    # 低优先级服务（可选）
+    BAIDU_MAP_API_KEY: "${baidu_map_api_key}"
+    GITEE_CLIENT_ID: "${gitee_client_id}"
+    GITEE_CLIENT_SECRET: "${gitee_client_secret}"
+    WECHAT_SANDBOX_APP_ID: "${wechat_app_id}"
+    WECHAT_SANDBOX_MCH_ID: "${wechat_mch_id}"
+    WECHAT_SANDBOX_API_KEY: "${wechat_api_key}"
+    
+    # 文件存储
+    OSS_ACCESS_KEY_ID: "${oss_access_key_id}"
+    OSS_ACCESS_KEY_SECRET: "${oss_access_key_secret}"
+    OSS_BUCKET: "${oss_bucket_name}"
+    OSS_REGION: "oss-cn-hangzhou"
+    OSS_ENDPOINT: "oss-cn-hangzhou.aliyuncs.com"
+
+# 监控配置
+monitoring:
+  # 云监控
+  cms_alerts:
+    - metric_name: "CPUUtilization"
+      threshold: 80
+      comparison_operator: "GreaterThanThreshold"
+    - metric_name: "memory_utilization"
+      threshold: 85
+      comparison_operator: "GreaterThanThreshold"
+      
+  # 日志服务
+  sls_config:
+    project_name: "trade-platform-logs"
+    logstore_name: "application-logs"
+    
+# 备份策略
+backup_policy:
+  # 数据库备份
+  rds_backup:
+    backup_period: "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"
+    backup_time: "02:00Z-03:00Z"
+    backup_retention_period: 7
+    
+  # 文件备份
+  oss_backup:
+    backup_frequency: "daily"
+    backup_retention: "30d"
+
+# 域名和SSL配置
+domain_ssl:
+  # 域名配置
+  domain_name: "your-domain.com"
+  subdomain: "api.your-domain.com"
+  
+  # SSL证书配置
+  ssl_certificate:
+    cert_name: "trade-platform-ssl"
+    cert_source: "cas"  # 阿里云SSL证书服务

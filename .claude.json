@@ -1,0 +1,51 @@
+{
+  "language": "zh-CN",
+  "encoding": "utf-8",
+  "codeComments": {
+    "level": "statement",
+    "language": "zh-CN",
+    "required": true
+  },
+  "fileOrganization": {
+    "structure": [
+      "frontend/",
+      "backend/",
+      "database/",
+      "third-party-integration/",
+      "tests/"
+    ],
+    "classification": "functional",
+    "separation": "single-responsibility"
+  },
+  "interfaceConnections": {
+    "frontend-backend": "RESTful API",
+    "backend-database": "ORM/Query Builder",
+    "third-party-integration": "API wrappers/adapters"
+  },
+  "projectCleanup": {
+    "autoOrganize": true,
+    "afterCodeGeneration": true,
+    "cleanupPatterns": [
+      "*.tmp",
+      "*.log",
+      "node_modules/"
+    ]
+  },
+  "hooks": {
+    "pre-generation": [
+      "echo '开始代码生成...'",
+      "检查项目结构完整性"
+    ],
+    "post-generation": [
+      "echo '代码生成完成，开始整理项目...'",
+      "整理文件到对应文件夹",
+      "检查接口连接",
+      "生成测试文件"
+    ],
+    "pre-commit": [
+      "检查中文编码",
+      "验证注释完整性",
+      "检查文件分类"
+    ]
+  }
+}

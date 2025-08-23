@@ -1,0 +1,26 @@
+{
+  "name": "trade-project",
+  "version": "1.0.0",
+  "description": "交易项目 - 使用Claude Code自动化管理",
+  "main": "index.js",
+  "scripts": {
+    "validate": "node scripts/validate-structure.js",
+    "organize": "node scripts/organize-project.js",
+    "add-comments": "node scripts/add-chinese-comments.js",
+    "setup": "npm run validate && npm run organize && npm run add-comments",
+    "claude-setup": "npm run setup"
+  },
+  "keywords": [
+    "trade",
+    "automation",
+    "chinese",
+    "claude-code"
+  ],
+  "author": "Claude Code",
+  "license": "MIT",
+  "devDependencies": {
+    "axios": "^1.11.0",
+    "chalk": "^5.6.0",
+    "supertest": "^6.3.3"
+  }
+}

@@ -1,0 +1,161 @@
+# ==============================================
+# wwwcn.uk 域名 Cloudflare 部署配置
+# ==============================================
+
+# 🌐 域名信息
+主域名: wwwcn.uk
+前端地址: https://wwwcn.uk
+API地址: https://api.wwwcn.uk
+管理后台: https://admin.wwwcn.uk (可选)
+
+# 📡 Cloudflare DNS 解析配置
+dns_records:
+  # 主域名解析到服务器
+  - type: A
+    name: "@"  # 代表 wwwcn.uk
+    content: "YOUR_SERVER_IP"
+    proxied: true  # 启用 Cloudflare 代理
+    
+  # API 子域名
+  - type: A
+    name: "api"  # api.wwwcn.uk
+    content: "YOUR_SERVER_IP" 
+    proxied: true
+    
+  # WWW 别名
+  - type: CNAME
+    name: "www"  # www.wwwcn.uk
+    content: "wwwcn.uk"
+    proxied: true
+    
+  # 管理后台 (可选)
+  - type: A
+    name: "admin"  # admin.wwwcn.uk
+    content: "YOUR_SERVER_IP"
+    proxied: true
+
+# 🔒 Cloudflare SSL/TLS 配置
+ssl_config:
+  ssl_mode: "Full (strict)"  # 最安全模式
+  auto_https_rewrites: true   # 自动 HTTPS 重定向
+  hsts: 
+    enabled: true
+    max_age: 31536000  # 1年
+    include_subdomains: true
+  min_tls_version: "1.2"
+
+# ⚡ Cloudflare 性能优化
+performance_config:
+  # 缓存配置
+  caching:
+    browser_cache_ttl: 14400  # 4小时
+    cache_level: "Standard"
+    
+  # 压缩
+  compression:
+    brotli: true
+    gzip: true
+    
+  # Minify
+  minify:
+    css: true
+    html: true
+    js: true
+    
+  # 自动优化
+  auto_minify: true
+  rocket_loader: false  # 避免与React冲突
+  
+# 🇨🇳 中国访问优化
+china_optimization:
+  # Cloudflare 中国网络
+  china_network: true  # Cloudflare 在中国有合作节点
+  
+  # 域名优势
+  uk_domain_benefits:
+    - "无需ICP备案"
+    - "中国用户可正常访问"  
+    - "通过香港/新加坡节点路由"
+    - "延迟通常在 100-200ms"
+    
+  # 推荐配置
+  recommended_settings:
+    argo_smart_routing: false  # 免费版不支持
+    polish: false  # 图片优化（付费功能）
+    mirage: false  # 图片延迟加载（付费功能）
+
+# 🛡️ 安全配置
+security_config:
+  # 防火墙规则
+  firewall_rules:
+    - name: "阻止恶意爬虫"
+      expression: '(cf.client.bot) and not (cf.verified_bot_category in {"search_engine" "social_media"})'
+      action: "block"
+      
+    - name: "API限流"
+      expression: '(http.request.uri.path contains "/api/") and (rate(10m) > 100)'
+      action: "challenge"
+      
+  # DDoS 防护
+  ddos_protection: 
+    enabled: true
+    sensitivity: "High"
+    
+  # Web 应用防火墙
+  waf:
+    enabled: true
+    managed_rules: true
+    
+# 📊 监控和分析
+monitoring:
+  # Cloudflare Analytics
+  analytics: true
+  
+  # 网站监控
+  health_checks:
+    - url: "https://wwwcn.uk/api/health"
+      interval: 60  # 秒
+      
+    - url: "https://api.wwwcn.uk/api/health"  
+      interval: 60
+
+# 🌍 地理位置配置
+geo_config:
+  # 允许的国家/地区
+  allowed_countries: 
+    - "CN"  # 中国
+    - "HK"  # 香港
+    - "TW"  # 台湾
+    - "SG"  # 新加坡
+    - "JP"  # 日本
+    - "KR"  # 韩国
+    - "US"  # 美国
+    - "GB"  # 英国
+    - "ALL" # 全球访问
+    
+  # 重定向规则（可选）
+  redirects:
+    # 强制 HTTPS
+    - source: "http://wwwcn.uk/*"
+      target: "https://wwwcn.uk/$1"
+      status: 301
+      
+    # WWW 重定向
+    - source: "https://www.wwwcn.uk/*"
+      target: "https://wwwcn.uk/$1" 
+      status: 301
+
+# 📱 移动端优化
+mobile_optimization:
+  amp: false  # 暂不启用 AMP
+  mobile_redirect: false
+  tablet_redirect: false
+
+# 🔧 开发环境配置
+development:
+  # 开发子域名
+  dev_subdomain: "dev.wwwcn.uk"  # 开发环境
+  staging_subdomain: "staging.wwwcn.uk"  # 测试环境
+  
+  # 开发者模式
+  development_mode: false  # 仅在需要时启用

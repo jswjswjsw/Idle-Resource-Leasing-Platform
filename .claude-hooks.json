@@ -1,0 +1,88 @@
+{
+  "hooks": {
+    "onStart": {
+      "description": "启动时设置中文环境和编码",
+      "commands": [
+        "echo 'Claude Code 启动 - 使用中文模式'",
+        "chcp 65001",
+        "set PYTHONIOENCODING=utf-8",
+        "set NODE_OPTIONS=--max-old-space-size=8192"
+      ]
+    },
+    "beforeWrite": {
+      "description": "写入文件前检查编码和格式",
+      "commands": [
+        "echo '检查文件编码...'",
+        "检测中文乱码",
+        "确保UTF-8编码"
+      ]
+    },
+    "afterWrite": {
+      "description": "写入文件后添加中文注释和整理",
+      "commands": [
+        "echo '添加中文语句级注释...'",
+        "autoAddComments",
+        "organizeFilesByFunction"
+      ]
+    },
+    "beforeCommit": {
+      "description": "提交前检查项目结构和接口连接",
+      "commands": [
+        "echo '检查项目结构完整性...'",
+        "validateFolderStructure",
+        "checkInterfaceConnections",
+        "verifyChineseEncoding"
+      ]
+    },
+    "afterGeneration": {
+      "description": "代码生成后自动整理项目",
+      "commands": [
+        "echo '开始整理项目结构...'",
+        "moveFilesToFunctionalFolders",
+        "connectFrontendBackendInterfaces",
+        "createTestFiles",
+        "organizeDatabaseModels",
+        "setupThirdPartyIntegrations"
+      ]
+    }
+  },
+  "fileOrganizationRules": {
+    "frontend": {
+      "components": "前端组件",
+      "pages": "页面文件",
+      "services": "API服务",
+      "utils": "工具函数",
+      "styles": "样式文件"
+    },
+    "backend": {
+      "controllers": "控制器",
+      "models": "数据模型",
+      "routes": "路由定义",
+      "middleware": "中间件",
+      "services": "业务逻辑"
+    },
+    "database": {
+      "schemas": "数据库模式",
+      "migrations": "迁移文件",
+      "seeds": "种子数据",
+      "queries": "查询语句"
+    },
+    "third-party-integration": {
+      "apis": "第三方API集成",
+      "adapters": "适配器模式",
+      "config": "配置文件",
+      "wrappers": "包装器"
+    },
+    "tests": {
+      "unit": "单元测试",
+      "integration": "集成测试",
+      "e2e": "端到端测试",
+      "fixtures": "测试数据"
+    }
+  },
+  "commentTemplates": {
+    "fileHeader": "// 文件名: {filename}\n// 功能描述: {description}\n// 创建时间: {timestamp}\n// 作者: Claude Code",
+    "function": "// 函数功能: {description}\n// 参数说明: {params}\n// 返回值: {returns}\n// 使用场景: {usage}",
+    "class": "// 类功能: {description}\n// 主要属性: {properties}\n// 核心方法: {methods}\n// 设计模式: {pattern}"
+  }
+}

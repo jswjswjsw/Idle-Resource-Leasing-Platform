@@ -1,0 +1,17 @@
+{
+  // 禁用 VS Code 内置的 CSS 验证，因为它不识别 @tailwind 指令
+  "css.validate": false,
+  "less.validate": false,
+  "scss.validate": false,
+  
+  // 将 .css 文件与 tailwindcss 语言模式关联，以获得更好的智能提示和验证
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+
+  // 建议安装 Tailwind CSS IntelliSense 插件以获得最佳体验
+  "recommendations": [
+    "bradlc.vscode-tailwindcss"
+  ],
+  "git.ignoreLimitWarning": true
+}
