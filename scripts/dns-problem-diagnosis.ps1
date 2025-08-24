@@ -92,14 +92,14 @@ Write-Host "----------------------------------"
 Write-Host "Testing network connectivity to DNS servers:" -ForegroundColor White
 $testHosts = @("8.8.8.8", "1.1.1.1", "daphne.ns.cloudflare.com")
 
-foreach ($host in $testHosts) {
-    Write-Host "Pinging ${host}:" -ForegroundColor White
+foreach ($testHost in $testHosts) {
+    Write-Host "Pinging ${testHost}:" -ForegroundColor White
     try {
-        $pingResult = Test-Connection -ComputerName $host -Count 2 -Quiet
+        $pingResult = Test-Connection -ComputerName $testHost -Count 2 -Quiet
         if ($pingResult) {
-            Write-Host "  SUCCESS: $host is reachable" -ForegroundColor Green
+            Write-Host "  SUCCESS: $testHost is reachable" -ForegroundColor Green
         } else {
-            Write-Host "  FAILED: $host is not reachable" -ForegroundColor Red
+            Write-Host "  FAILED: $testHost is not reachable" -ForegroundColor Red
         }
     } catch {
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
