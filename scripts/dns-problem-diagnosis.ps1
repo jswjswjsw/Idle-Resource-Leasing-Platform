@@ -45,7 +45,7 @@ Write-Host ""
 Write-Host "Step 2: Name Server Check" -ForegroundColor Yellow
 Write-Host "-------------------------"
 
-Write-Host "Checking current nameservers for $domain:" -ForegroundColor White
+Write-Host "Checking current nameservers for ${domain}:" -ForegroundColor White
 try {
     $nsResult = nslookup -type=NS $domain 8.8.8.8 2>&1
     Write-Host "NS Query Result: $nsResult" -ForegroundColor Gray
@@ -76,7 +76,7 @@ Write-Host "Step 4: Subdomain Resolution Test" -ForegroundColor Yellow
 Write-Host "-----------------------------------"
 
 foreach ($subdomain in $subdomains) {
-    Write-Host "Testing $subdomain:" -ForegroundColor White
+    Write-Host "Testing ${subdomain}:" -ForegroundColor White
     try {
         $subResult = nslookup $subdomain 8.8.8.8 2>&1
         Write-Host "  Result: $subResult" -ForegroundColor Gray
@@ -93,7 +93,7 @@ Write-Host "Testing network connectivity to DNS servers:" -ForegroundColor White
 $testHosts = @("8.8.8.8", "1.1.1.1", "daphne.ns.cloudflare.com")
 
 foreach ($host in $testHosts) {
-    Write-Host "Pinging $host:" -ForegroundColor White
+    Write-Host "Pinging ${host}:" -ForegroundColor White
     try {
         $pingResult = Test-Connection -ComputerName $host -Count 2 -Quiet
         if ($pingResult) {
