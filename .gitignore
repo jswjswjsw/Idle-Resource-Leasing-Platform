@@ -1,0 +1,115 @@
+# Node.js 依赖文件
+node_modules/
+*/node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# 构建输出目录
+dist/
+build/
+*/dist/
+*/build/
+**/dist/
+**/build/
+*.tsbuildinfo
+
+# 部署包目录（不应该提交）
+deploy-package/
+
+# 环境变量文件
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+.env.test
+.env.staging
+.env.*.local
+
+# 日志文件
+*.log
+logs/
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 运行时文件
+*.pid
+*.seed
+*.pid.lock
+
+# 覆盖率报告
+coverage/
+.nyc_output/
+
+# IDE 和编辑器文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+.DS_Store?
+eThumbs.db
+Thumbs.db
+*.tmp
+*.temp
+
+# Windows 特定文件
+desktop.ini
+$RECYCLE.BIN/
+
+# 压缩文件
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# 数据库文件
+*.sqlite
+*.sqlite3
+*.db
+
+# 临时文件和缓存
+.cache/
+.temp/
+.tmp/
+*.cache
+
+# SSL 证书文件（敏感信息）
+*.pem
+*.key
+*.crt
+*.cert
+
+# 配置文件中的敏感信息
+config/production.js
+config/staging.js
+
+# Docker 相关
+.dockerignore
+
+# Git 相关
+.git/
+*.orig
+
+# 备份文件
+*.backup
+*.bak
+*.old
+
+# 测试相关
+test-results/
+.coverage/
+
+# 其他常见忽略项
+.eslintcache
+.stylelintcache

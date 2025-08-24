@@ -1,0 +1,26 @@
+# 简化版GitHub上传命令
+
+Write-Host "📤 简化版GitHub上传" -ForegroundColor Cyan
+Write-Host "=" * 30
+
+Write-Host "📋 执行以下命令上传文件:" -ForegroundColor Yellow
+Write-Host ""
+
+Write-Host "# 1. 进入项目目录" -ForegroundColor Green
+Write-Host "cd d:\project\trade" -ForegroundColor White
+Write-Host ""
+
+Write-Host "# 2. 添加所有新文件" -ForegroundColor Green  
+Write-Host "git add ." -ForegroundColor White
+Write-Host ""
+
+Write-Host "# 3. 提交更改" -ForegroundColor Green
+Write-Host 'git commit -m "feat: 完成Windows ECS部署自动化脚本和文档"' -ForegroundColor White
+Write-Host ""
+
+Write-Host "# 4. 推送到GitHub" -ForegroundColor Green
+Write-Host "git push origin main" -ForegroundColor White
+Write-Host ""
+
+Write-Host "或者执行一键上传脚本:" -ForegroundColor Cyan
+Write-Host "powershell -ExecutionPolicy Bypass -File 'scripts\upload-to-github.ps1'" -ForegroundColor Yellow

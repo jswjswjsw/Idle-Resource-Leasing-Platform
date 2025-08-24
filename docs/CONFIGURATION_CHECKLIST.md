@@ -53,32 +53,51 @@
     -H "Authorization: Bearer YOUR_API_TOKEN"
   ```
 
-### ✅ DNS记录配置
-- [ ] **主域名 A 记录**
+### ✅ DNS记录配置 ✅ **已完成**
+- [x] **主域名 A 记录**
   - 名称：`@` (或 wwwcn.uk)
   - 类型：A
-  - 内容：您的服务器IP
-  - 代理状态：已启用 (橙色云朵)
+  - 内容：116.62.44.24 ✅
+  - 代理状态：已启用 (橙色云朵) ✅
   
-- [ ] **API子域名 A 记录**
+- [x] **API子域名 A 记录**
   - 名称：`api`
   - 类型：A  
-  - 内容：您的服务器IP
-  - 代理状态：已启用
+  - 内容：116.62.44.24 ✅
+  - 代理状态：已启用 ✅
   
-- [ ] **WWW别名 CNAME 记录**
+- [x] **WWW别名 CNAME 记录**
   - 名称：`www`
   - 类型：CNAME
-  - 内容：`wwwcn.uk`
-  - 代理状态：已启用
+  - 内容：`wwwcn.uk` ✅
+  - 代理状态：已启用 ✅
 
-### ✅ SSL/TLS配置
-- [ ] **SSL模式设置为 "Full (strict)"**
-- [ ] **自动HTTPS重定向已启用**
-- [ ] **HSTS已启用**
+### ✅ SSL/TLS配置 🆓 **完全免费方案**
+- [ ] **SSL模式设置为 "Full (strict)"** 🆓
+  - 位置: Cloudflare控制台 → SSL/TLS → 概述 → 加密模式
+  - 选择: "完全(严格)" 模式
+  - 费用: Cloudflare免费计划包含
+- [ ] **自动HTTPS重定向已启用** 🆓
+  - 位置: SSL/TLS → 边缘证书 → 始终使用HTTPS
+  - 设置: 开启
+  - 费用: 完全免费
+- [ ] **HSTS已启用** 🆓
+  - 位置: SSL/TLS → 边缘证书 → HTTP严格传输安全(HSTS)
   - Max Age：1年 (31536000秒)
   - 包含子域名：是
-- [ ] **最小TLS版本设置为 1.2**
+  - 预加载：是(可选)
+  - 费用: 免费功能
+- [ ] **最小TLS版本设置为 1.2** 🆓
+  - 位置: SSL/TLS → 边缘证书 → 最小TLS版本
+  - 选择: TLS 1.2
+  - 费用: 免费支持
+- [ ] **服务器SSL证书安装** 🆓
+  - 方案: Let's Encrypt免费证书
+  - 有效期: 90天自动续期
+  - 安装: 使用项目提供的自动化脚本
+  - Windows ECS: 使用win-acme工具 (scripts/setup-ssl-windows.ps1)
+  - Linux ECS: 使用Certbot工具 (scripts/install-ssl-certificate.sh)
+  - 费用: 完全免费
 
 ### ✅ 性能优化配置
 - [ ] **Brotli压缩已启用**
