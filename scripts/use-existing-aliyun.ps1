@@ -3,6 +3,7 @@
 # 阿里云配置
 $ACCESS_KEY_ID = $env:ALIYUN_ACCESS_KEY_ID # 请设置环境变量
 $ACCESS_KEY_SECRET = $env:ALIYUN_ACCESS_KEY_SECRET # 请设置环境变量
+$CLOUDFLARE_TOKEN = $env:CLOUDFLARE_API_TOKEN # 请设置环境变量
 $REGION = "cn-hangzhou"
 
 Write-Host "🔍 检查现有阿里云ECS资源" -ForegroundColor Cyan
@@ -235,7 +236,7 @@ if ($publicIP) {
     # 自动更新DNS记录
     Write-Host "🌐 更新DNS记录指向现有服务器..." -ForegroundColor Yellow
     try {
-        & powershell -ExecutionPolicy Bypass -File "d:\project\trade\scripts\setup-dns-simple.ps1" -Token "7oau74rVYmV5VWw073z1FmhpZ2ZVPy3js3JFh0ke" -ServerIP $publicIP
+        & powershell -ExecutionPolicy Bypass -File "d:\project\trade\scripts\setup-dns-simple.ps1" -Token $CLOUDFLARE_TOKEN -ServerIP $publicIP
         Write-Host "✅ DNS记录更新完成" -ForegroundColor Green
     } catch {
         Write-Host "⚠️ DNS记录更新失败，请手动更新" -ForegroundColor Yellow
