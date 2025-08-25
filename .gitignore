@@ -110,6 +110,11 @@ config/staging.js
 test-results/
 .coverage/
 
+# 部署生成的敏感信息文件
+.aliyun-deployment.json
+.existing-ecs.json
+rds-config.env
+
 # 其他常见忽略项
 .eslintcache
 .stylelintcache

@@ -42,8 +42,20 @@ Write-Host "使用Cloudflare API或控制台添加DNS记录" -ForegroundColor Wh
 
 $dnsApiScript = @'
 # 使用Cloudflare API添加DNS记录
-$ZONE_ID = "8ad887047518bc2772572ade96309c55"
-$API_TOKEN = "7oau74rVYmV5VWw073z1FmhpZ2ZVPy3js3JFh0ke"
+# 从环境变量获取配置
+$ZONE_ID = $env:CLOUDFLARE_ZONE_ID
+if (-not $ZONE_ID) {
+    $ZONE_ID = "8ad887047518bc2772572ade96309c55"  # 默认值
+    Write-Host "警告: 使用默认 Zone ID，建议设置环境变量 CLOUDFLARE_ZONE_ID" -ForegroundColor Yellow
+}
+
+$API_TOKEN = $env:CLOUDFLARE_API_TOKEN
+if (-not $API_TOKEN) {
+    Write-Host "错误: 请设置环境变量 CLOUDFLARE_API_TOKEN" -ForegroundColor Red
+    Write-Host "示例: `$env:CLOUDFLARE_API_TOKEN = 'your_token_here'" -ForegroundColor Gray
+    return
+}
+
 $SERVER_IP = "116.62.44.24"
 
 $headers = @{

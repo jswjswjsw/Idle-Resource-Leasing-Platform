@@ -1,6 +1,20 @@
-param([string]$Token = "7oau74rVYmV5VWw073z1FmhpZ2ZVPy3js3JFh0ke")
+param(
+    [string]$Token = $env:CLOUDFLARE_API_TOKEN,
+    [string]$ZoneId = $env:CLOUDFLARE_ZONE_ID
+)
 
-$ZONE_ID = "8ad887047518bc2772572ade96309c55"
+# 验证必需的参数
+if (-not $Token) {
+    Write-Host "错误: 请设置环境变量 CLOUDFLARE_API_TOKEN 或通过 -Token 参数提供" -ForegroundColor Red
+    exit 1
+}
+
+if (-not $ZoneId) {
+    $ZoneId = "8ad887047518bc2772572ade96309c55"  # 默认值，建议设置环境变量
+    Write-Host "警告: 使用默认 Zone ID，建议设置环境变量 CLOUDFLARE_ZONE_ID" -ForegroundColor Yellow
+}
+
+$ZONE_ID = $ZoneId
 $headers = @{
     "Authorization" = "Bearer $Token"
     "Content-Type" = "application/json"

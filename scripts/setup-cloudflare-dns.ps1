@@ -3,7 +3,8 @@
 
 param(
     [string]$Token = $null,
-    [string]$ServerIP = $null
+    [string]$ServerIP = $null,
+    [string]$ZoneId = $env:CLOUDFLARE_ZONE_ID
 )
 
 # 检查参数
@@ -23,7 +24,12 @@ if (-not $ServerIP) {
 }
 
 # 项目配置
-$ZONE_ID = "8ad887047518bc2772572ade96309c55"
+if (-not $ZoneId) {
+    $ZoneId = "8ad887047518bc2772572ade96309c55"  # 默认值，建议设置环境变量
+    Write-Host "警告: 使用默认 Zone ID，建议设置环境变量 CLOUDFLARE_ZONE_ID" -ForegroundColor Yellow
+}
+
+$ZONE_ID = $ZoneId
 $DOMAIN = "wwwcn.uk"
 
 Write-Host "🌐 开始配置 Cloudflare DNS 记录" -ForegroundColor Cyan

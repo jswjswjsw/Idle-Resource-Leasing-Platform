@@ -23,7 +23,15 @@ if "%~2"=="" (
 
 set "TOKEN=%~1"
 set "SERVER_IP=%~2"
-set "ZONE_ID=8ad887047518bc2772572ade96309c55"
+
+REM 从环境变量获取 Zone ID，如果没有则使用默认值
+if "%CLOUDFLARE_ZONE_ID%"=="" (
+    set "ZONE_ID=8ad887047518bc2772572ade96309c55"
+    echo 警告: 使用默认 Zone ID，建议设置环境变量 CLOUDFLARE_ZONE_ID
+) else (
+    set "ZONE_ID=%CLOUDFLARE_ZONE_ID%"
+)
+
 set "DOMAIN=wwwcn.uk"
 
 echo 域名: %DOMAIN%

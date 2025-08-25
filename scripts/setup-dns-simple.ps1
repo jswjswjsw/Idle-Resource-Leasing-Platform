@@ -1,6 +1,18 @@
-param([string]$Token, [string]$ServerIP)
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$Token,
+    [Parameter(Mandatory=$true)]
+    [string]$ServerIP,
+    [string]$ZoneId = $env:CLOUDFLARE_ZONE_ID
+)
 
-$ZONE_ID = "8ad887047518bc2772572ade96309c55"
+# 验证Zone ID参数
+if (-not $ZoneId) {
+    $ZoneId = "8ad887047518bc2772572ade96309c55"  # 默认值，建议设置环境变量
+    Write-Host "警告: 使用默认 Zone ID，建议设置环境变量 CLOUDFLARE_ZONE_ID" -ForegroundColor Yellow
+}
+
+$ZONE_ID = $ZoneId
 $headers = @{"Authorization" = "Bearer $Token"; "Content-Type" = "application/json"}
 
 Write-Host "Setting up DNS for wwwcn.uk..." -ForegroundColor Cyan

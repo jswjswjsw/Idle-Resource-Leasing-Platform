@@ -11,7 +11,13 @@ Write-Host "ECS IP: $EcsIP" -ForegroundColor Yellow
 
 # Update DNS using existing script
 try {
-    & powershell -ExecutionPolicy Bypass -File "d:\project\trade\scripts\setup-dns-simple.ps1" -Token "7oau74rVYmV5VWw073z1FmhpZ2ZVPy3js3JFh0ke" -ServerIP $EcsIP
+    # 从环境变量获取 Cloudflare Token
+    $CLOUDFLARE_TOKEN = $env:CLOUDFLARE_API_TOKEN
+    if (-not $CLOUDFLARE_TOKEN) {
+        Write-Host "错误: 请设置环境变量 CLOUDFLARE_API_TOKEN" -ForegroundColor Red
+        exit 1
+    }
+    & powershell -ExecutionPolicy Bypass -File "d:\project\trade\scripts\setup-dns-simple.ps1" -Token $CLOUDFLARE_TOKEN -ServerIP $EcsIP
     Write-Host "SUCCESS: DNS records updated" -ForegroundColor Green
 } catch {
     Write-Host "ERROR: DNS update failed - $($_.Exception.Message)" -ForegroundColor Red

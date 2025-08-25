@@ -1,4 +1,9 @@
-$token = "7oau74rVYmV5VWw073z1FmhpZ2ZVPy3js3JFh0ke"
+# 从环境变量获取 Cloudflare Token
+$token = $env:CLOUDFLARE_API_TOKEN
+if (-not $token) {
+    Write-Host "错误: 请设置环境变量 CLOUDFLARE_API_TOKEN" -ForegroundColor Red
+    exit 1
+}
 Write-Host "Token Length: $($token.Length)"
 
 $headers = @{

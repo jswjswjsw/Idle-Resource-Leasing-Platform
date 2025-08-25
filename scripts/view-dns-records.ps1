@@ -1,5 +1,15 @@
-$token = "7oau74rVYmV5VWw073z1FmhpZ2ZVPy3js3JFh0ke"
-$ZONE_ID = "8ad887047518bc2772572ade96309c55"
+# 从环境变量获取 Cloudflare 配置
+$token = $env:CLOUDFLARE_API_TOKEN
+if (-not $token) {
+    Write-Host "错误: 请设置环境变量 CLOUDFLARE_API_TOKEN" -ForegroundColor Red
+    exit 1
+}
+
+$ZONE_ID = $env:CLOUDFLARE_ZONE_ID
+if (-not $ZONE_ID) {
+    $ZONE_ID = "8ad887047518bc2772572ade96309c55"  # 默认值
+    Write-Host "警告: 使用默认 Zone ID，建议设置环境变量 CLOUDFLARE_ZONE_ID" -ForegroundColor Yellow
+}
 
 Write-Host "🌐 查看 wwwcn.uk 域名的 DNS 记录" -ForegroundColor Cyan
 Write-Host "=" * 50
