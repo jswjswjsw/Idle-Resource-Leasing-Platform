@@ -12,26 +12,26 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const express_rate_limit_1 = require("express-rate-limit");
-require("./config/cache"); // 初始化Redis连接
-const errorHandler_1 = require("./middleware/errorHandler");
-const logger_1 = require("./middleware/logger");
-const auth_1 = require("./middleware/auth");
-const auth_2 = __importDefault(require("./routes/auth"));
-const user_1 = __importDefault(require("./routes/user"));
-const resource_1 = __importDefault(require("./routes/resource"));
-const order_1 = __importDefault(require("./routes/order"));
-const payment_1 = __importDefault(require("./routes/payment"));
-const chat_1 = __importDefault(require("./routes/chat"));
-const notification_1 = __importDefault(require("./routes/notification"));
-const file_1 = __importDefault(require("./routes/file"));
-const location_1 = __importDefault(require("./routes/location"));
-const wechatOAuth_1 = __importDefault(require("./routes/wechatOAuth"));
-const githubOAuth_1 = __importDefault(require("./routes/githubOAuth"));
-const swagger_1 = require("./config/swagger");
-const socket_1 = require("./config/socket");
-const cache_1 = require("./config/cache"); // 初始化缓存并导出状态查询
+require("@/config/cache"); // 初始化Redis连接
+const errorHandler_1 = require("@/middleware/errorHandler");
+const logger_1 = require("@/middleware/logger");
+const auth_1 = require("@/middleware/auth");
+const auth_2 = __importDefault(require("@/routes/auth"));
+const user_1 = __importDefault(require("@/routes/user"));
+const resource_1 = __importDefault(require("@/routes/resource"));
+const order_1 = __importDefault(require("@/routes/order"));
+const payment_1 = __importDefault(require("@/routes/payment"));
+const chat_1 = __importDefault(require("@/routes/chat"));
+const notification_1 = __importDefault(require("@/routes/notification"));
+const file_1 = __importDefault(require("@/routes/file"));
+const location_1 = __importDefault(require("@/routes/location"));
+const wechatOAuth_1 = __importDefault(require("@/routes/wechatOAuth"));
+const githubOAuth_1 = __importDefault(require("@/routes/githubOAuth"));
+const swagger_1 = require("@/config/swagger");
+const socket_1 = require("@/config/socket");
+const cache_1 = require("@/config/cache"); // 初始化缓存并导出状态查询
 // 新增：数据库健康检查工具
-const database_1 = require("./config/database"); // 复用统一的prisma实例
+const database_1 = require("@/config/database"); // 复用统一的prisma实例
 Object.defineProperty(exports, "prisma", { enumerable: true, get: function () { return database_1.prisma; } });
 const package_json_1 = __importDefault(require("../package.json")); // 引入应用包信息用于健康检查返回版本
 dotenv_1.default.config();
@@ -69,7 +69,7 @@ app.use('/api/', limiter);
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
 // 请求日志
-app.use(logger_1.logger);
+app.use(logger_1.requestLogger);
 // 健康检查
 // 提取健康检查处理器，便于复用不同路径
 const healthHandler = async (req, res) => {

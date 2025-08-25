@@ -1,4 +1,48 @@
 /**
+ * 邮件服务配置
+ * 支持多个免费邮件服务提供商
+ */
+export interface EmailTemplate {
+    subject: string;
+    html: string;
+    text?: string;
+}
+export interface EmailOptions {
+    to: string | string[];
+    subject: string;
+    html?: string;
+    text?: string;
+    template?: string;
+    data?: Record<string, any>;
+}
+/**
+ * 发送邮件
+ */
+export declare function sendEmail(options: EmailOptions): Promise<boolean>;
+/**
+ * 发送验证码邮件
+ */
+export declare function sendVerificationEmail(email: string, username: string, code: string, expireMinutes?: number): Promise<boolean>;
+/**
+ * 发送密码重置邮件
+ */
+export declare function sendPasswordResetEmail(email: string, username: string, resetUrl: string, expireMinutes?: number): Promise<boolean>;
+/**
+ * 发送登录通知邮件
+ */
+export declare function sendLoginNotificationEmail(email: string, username: string, loginTime: string, ip: string, location?: string): Promise<boolean>;
+/**
+ * 发送订单通知邮件
+ */
+export declare function sendOrderNotificationEmail(email: string, username: string, orderNumber: string, resourceTitle: string, totalAmount: number, action: string): Promise<boolean>;
+/**
+ * 邮件服务状态检查
+ */
+export declare function getEmailServiceStatus(): {
+    available: boolean;
+    configured: boolean;
+};
+/**
  * 邮件服务类
  * 负责处理所有邮件发送相关的功能
  */

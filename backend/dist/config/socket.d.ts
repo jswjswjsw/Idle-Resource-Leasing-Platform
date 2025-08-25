@@ -3,12 +3,16 @@ declare module 'socket.io' {
     interface Socket {
         userId: string;
         username: string;
+        userAgent?: string;
+        ip?: string;
     }
 }
 declare class SocketManager {
     private io;
     private connectedUsers;
     private socketToUser;
+    private userStatus;
+    private heartbeatInterval;
     constructor(server: HttpServer);
     private setupMiddleware;
     private setupSocketHandlers;

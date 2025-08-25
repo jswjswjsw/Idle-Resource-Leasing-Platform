@@ -1,74 +1,176 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.notificationService = void 0;
-const database_1 = require("../config/database"); // 统一Prisma实例
-exports.notificationService = {
-    // 获取通知列表
-    async getNotifications(userId, options = {}) {
-        const { page = 1, limit = 20 } = options;
-        const skip = (page - 1) * limit;
-        const [notifications, total] = await Promise.all([
-            database_1.prisma.notification.findMany({
-                where: { userId },
-                orderBy: { createdAt: 'desc' },
-                skip,
-                take: limit
-            }),
-            database_1.prisma.notification.count({ where: { userId } })
-        ]);
-        return {
-            data: notifications,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit)
-            }
-        };
-    },
-    // 创建通知
-    async createNotification(notificationData) {
-        const { userId, type, title, content, data, actionUrl } = notificationData;
-        const notification = await database_1.prisma.notification.create({
-            data: {
-                userId,
-                type: typeof type === 'string' ? 'SYSTEM' : type,
-                title,
-                message: content,
-                data: data ? JSON.stringify(data) : null,
-                actionUrl,
-                isRead: false
-            }
-        });
-        return notification;
-    },
-    // 标记通知为已读
-    async markAsRead(notificationId, userId) {
-        await database_1.prisma.notification.update({
-            where: { id: notificationId },
-            data: { isRead: true }
-        });
-        return { success: true };
-    },
-    // 标记所有通知为已读
-    async markAllAsRead(userId) {
-        await database_1.prisma.notification.updateMany({
-            where: { userId, isRead: false },
-            data: { isRead: true }
-        });
-        return { success: true };
-    },
-    // 获取未读通知数量
-    async getUnreadCount(userId) {
-        const count = await database_1.prisma.notification.count({
-            where: { userId, isRead: false }
-        });
-        return count;
-    },
-    // 发送订单相关通知
-    async sendOrderNotification(orderId, type, data) {
-        // 简化版本，返回空数组
-        return [];
+exports.NotificationService = exports.NotificationStatus = exports.NotificationChannel = exports.NotificationPriority = exports.NotificationType = void 0;
+const logger_1 = require("@/middleware/logger");
+const cache_1 = require("@/config/cache");
+/**
+ * 通知类型枚举
+ */
+var NotificationType;
+(function (NotificationType) {
+    NotificationType["SYSTEM"] = "system";
+    NotificationType["ORDER"] = "order";
+    NotificationType["MESSAGE"] = "message";
+    NotificationType["PAYMENT"] = "payment";
+    NotificationType["USER"] = "user";
+    NotificationType["SECURITY"] = "security";
+})(NotificationType || (exports.NotificationType = NotificationType = {}));
+/**
+ * 通知优先级枚举
+ */
+var NotificationPriority;
+(function (NotificationPriority) {
+    NotificationPriority["LOW"] = "low";
+    NotificationPriority["NORMAL"] = "normal";
+    NotificationPriority["HIGH"] = "high";
+    NotificationPriority["URGENT"] = "urgent";
+})(NotificationPriority || (exports.NotificationPriority = NotificationPriority = {}));
+/**
+ * 通知渠道枚举
+ */
+var NotificationChannel;
+(function (NotificationChannel) {
+    NotificationChannel["IN_APP"] = "in_app";
+    NotificationChannel["EMAIL"] = "email";
+    NotificationChannel["SMS"] = "sms";
+    NotificationChannel["PUSH"] = "push";
+})(NotificationChannel || (exports.NotificationChannel = NotificationChannel = {}));
+/**
+ * 通知状态枚举
+ */
+var NotificationStatus;
+(function (NotificationStatus) {
+    NotificationStatus["PENDING"] = "pending";
+    NotificationStatus["SENT"] = "sent";
+    NotificationStatus["DELIVERED"] = "delivered";
+    NotificationStatus["READ"] = "read";
+    NotificationStatus["FAILED"] = "failed";
+})(NotificationStatus || (exports.NotificationStatus = NotificationStatus = {}));
+/**
+ * 通知服务类
+ */
+class NotificationService {
+    constructor() {
+        this.templates = new Map();
+        this.initializeTemplates();
     }
-};
+    /**
+     * 初始化通知模板
+     */
+    initializeTemplates() {
+        const templates = [
+            {
+                id: 'welcome',
+                type: NotificationType.USER,
+                title: '欢迎加入交易平台',
+                content: '欢迎您，{{username}}！感谢注册我们的交易平台，开始您的交易之旅吧！',
+                variables: ['username'],
+                channels: [NotificationChannel.IN_APP, NotificationChannel.EMAIL],
+                priority: NotificationPriority.NORMAL
+            },
+            {
+                id: 'order_created',
+                type: NotificationType.ORDER,
+                title: '订单创建成功',
+                content: '您的订单 {{orderNumber}} 已创建成功，订单金额：{{amount}}元',
+                variables: ['orderNumber', 'amount'],
+                channels: [NotificationChannel.IN_APP],
+                priority: NotificationPriority.NORMAL
+            },
+            {
+                id: 'order_paid',
+                type: NotificationType.ORDER,
+                title: '订单支付成功',
+                content: '您的订单 {{orderNumber}} 已支付成功，金额：{{amount}}元',
+                variables: ['orderNumber', 'amount'],
+                channels: [NotificationChannel.IN_APP, NotificationChannel.EMAIL, NotificationChannel.SMS],
+                priority: NotificationPriority.HIGH
+            },
+            {
+                id: 'payment_success',
+                type: NotificationType.PAYMENT,
+                title: '支付成功',
+                content: '您的支付已成功，交易号：{{tradeNo}}，金额：{{amount}}元',
+                variables: ['tradeNo', 'amount'],
+                channels: [NotificationChannel.IN_APP, NotificationChannel.SMS],
+                priority: NotificationPriority.HIGH
+            },
+            {
+                id: 'payment_failed',
+                type: NotificationType.PAYMENT,
+                title: '支付失败',
+                content: '您的支付失败，请检查支付方式或联系客服。订单号：{{orderNumber}}',
+                variables: ['orderNumber'],
+                channels: [NotificationChannel.IN_APP],
+                priority: NotificationPriority.HIGH
+            },
+            {
+                id: 'new_message',
+                type: NotificationType.MESSAGE,
+                title: '新消息',
+                content: '您收到来自 {{senderName}} 的新消息',
+                variables: ['senderName'],
+                channels: [NotificationChannel.IN_APP],
+                priority: NotificationPriority.NORMAL
+            },
+            {
+                id: 'security_alert',
+                type: NotificationType.SECURITY,
+                title: '安全提醒',
+                content: '检测到您的账户在 {{location}} 登录，如非本人操作请立即修改密码',
+                variables: ['location'],
+                channels: [NotificationChannel.IN_APP, NotificationChannel.EMAIL, NotificationChannel.SMS],
+                priority: NotificationPriority.URGENT
+            },
+            {
+                id: 'password_changed',
+                type: NotificationType.SECURITY,
+                title: '密码已修改',
+                content: '您的账户密码已成功修改，修改时间：{{time}}',
+                variables: ['time'],
+                channels: [NotificationChannel.IN_APP, NotificationChannel.EMAIL],
+                priority: NotificationPriority.HIGH
+            },
+            {
+                id: 'system_maintenance',
+                type: NotificationType.SYSTEM,
+                title: '系统维护通知',
+                content: '系统将于 {{startTime}} 至 {{endTime}} 进行维护，期间服务可能中断',
+                variables: ['startTime', 'endTime'],
+                channels: [NotificationChannel.IN_APP, NotificationChannel.EMAIL],
+                priority: NotificationPriority.HIGH
+            }
+        ];
+        n;
+        n;
+        templates.forEach(template => { n; this.templates.set(template.id, template); n; });
+        n;
+    }
+    async sendNotification(request) { n; const userIds = Array.isArray(request.userId) ? request.userId : [request.userId]; n; const notificationIds = []; n; n; for (const userId of userIds) {
+        n;
+        try {
+            n;
+            const notification = await this.createNotification(userId, request);
+            n;
+            await this.deliverNotification(notification);
+            n;
+            notificationIds.push(notification.id);
+            n;
+        }
+        catch (error) {
+            n;
+            logger_1.winstonLogger.error('发送通知失败', { n, userId, n, type: request.type, n, error: error.message, n });
+            n;
+        }
+        n;
+    } n; n; return notificationIds; n; }
+}
+exports.NotificationService = NotificationService;
+{ }
+n;
+Promise < { notifications: Notification[], total: number, unreadCount: number } > { n, const: { n, page = 1, n, limit = 20, n, type, n, status, n, unreadOnly = false, n } = options, n, n, const: userNotificationsKey = `${cache_1.CACHE_KEYS.NOTIFICATIONS}${userId}`, n, let, notifications = await cache_1.cache.get(userNotificationsKey) || [], n, n // 过滤过期通知\n    notifications = notifications.filter((n: Notification) => !n.expiresAt || n.expiresAt > new Date());\n\n    // 应用筛选条件\n    if (type) {\n      notifications = notifications.filter((n: Notification) => n.type === type);\n    }\n\n    if (status) {\n      notifications = notifications.filter((n: Notification) => n.status === status);\n    }\n\n    if (unreadOnly) {\n      notifications = notifications.filter((n: Notification) => !n.readAt);\n    }\n\n    const total = notifications.length;\n    const unreadCount = notifications.filter((n: Notification) => !n.readAt).length;\n\n    // 分页\n    const startIndex = (page - 1) * limit;\n    const paginatedNotifications = notifications.slice(startIndex, startIndex + limit);\n\n    return {\n      notifications: paginatedNotifications,\n      total,\n      unreadCount\n    };\n  }\n\n  /**\n   * 创建通知\n   */\n  private async createNotification(\n    userId: string, \n    request: SendNotificationRequest\n  ): Promise<Notification> {\n    const notificationId = this.generateNotificationId();\n    const now = new Date();\n    \n    let { title, content, channels, priority } = request;\n    \n    // 如果使用模板\n    if (request.templateId) {\n      const template = this.templates.get(request.templateId);\n      if (!template) {\n        throw ErrorFactory.badRequest('通知模板不存在');\n      }\n      \n      title = this.renderTemplate(template.title, request.templateData || {});\n      content = this.renderTemplate(template.content, request.templateData || {});\n      channels = template.channels;\n      priority = template.priority;\n    }\n    \n    const notification: Notification = {\n      id: notificationId,\n      userId,\n      type: request.type,\n      priority: priority || NotificationPriority.NORMAL,\n      title,\n      content,\n      data: request.data,\n      channels: channels || [NotificationChannel.IN_APP],\n      status: NotificationStatus.PENDING,\n      createdAt: now,\n      updatedAt: now,\n      expiresAt: request.expiresIn ? new Date(now.getTime() + request.expiresIn * 1000) : undefined\n    };\n    \n    // 保存通知到缓存\n    await this.saveNotification(notification);\n    \n    winstonLogger.info('通知创建成功', {\n      notificationId,\n      userId,\n      type: request.type,\n      priority\n    });\n    \n    return notification;\n  }\n\n  /**\n   * 投递通知\n   */\n  private async deliverNotification(notification: Notification): Promise<void> {\n    const deliveryPromises: Promise<void>[] = [];\n    \n    for (const channel of notification.channels) {\n      switch (channel) {\n        case NotificationChannel.IN_APP:\n          deliveryPromises.push(this.deliverInAppNotification(notification));\n          break;\n        case NotificationChannel.EMAIL:\n          deliveryPromises.push(this.deliverEmailNotification(notification));\n          break;\n        case NotificationChannel.SMS:\n          deliveryPromises.push(this.deliverSmsNotification(notification));\n          break;\n        case NotificationChannel.PUSH:\n          deliveryPromises.push(this.deliverPushNotification(notification));\n          break;\n      }\n    }\n    \n    // 等待所有渠道投递完成\n    await Promise.allSettled(deliveryPromises);\n    \n    // 更新通知状态\n    notification.status = NotificationStatus.SENT;\n    notification.updatedAt = new Date();\n    await this.saveNotification(notification);\n  }\n\n  /**\n   * 投递应用内通知\n   */\n  private async deliverInAppNotification(notification: Notification): Promise<void> {\n    try {\n      // 将通知添加到用户的通知列表\n      const userNotificationsKey = `${CACHE_KEYS.NOTIFICATIONS}${notification.userId}`;\n      const userNotifications = await cache.get(userNotificationsKey) || [];\n      \n      userNotifications.unshift(notification);\n      \n      // 保持最多1000条通知\n      if (userNotifications.length > 1000) {\n        userNotifications.splice(1000);\n      }\n      \n      await cache.set(userNotificationsKey, userNotifications, CACHE_TTL.VERY_LONG);\n      \n      // 更新未读计数\n      await this.updateUnreadCount(notification.userId, 1);\n      \n      winstonLogger.debug('应用内通知投递成功', {\n        notificationId: notification.id,\n        userId: notification.userId\n      });\n    } catch (error) {\n      winstonLogger.error('应用内通知投递失败', {\n        notificationId: notification.id,\n        userId: notification.userId,\n        error: error.message\n      });\n    }\n  }\n\n  /**\n   * 投递邮件通知\n   */\n  private async deliverEmailNotification(notification: Notification): Promise<void> {\n    try {\n      // 这里需要根据userId获取用户邮箱\n      // 简化处理，假设可以从缓存或数据库获取\n      const userEmail = await this.getUserEmail(notification.userId);\n      \n      if (userEmail) {\n        await emailService.sendNotification(\n          userEmail,\n          notification.title,\n          notification.content,\n          notification.data\n        );\n        \n        winstonLogger.debug('邮件通知投递成功', {\n          notificationId: notification.id,\n          userId: notification.userId,\n          email: userEmail.replace(/(.{3}).+(.{3}@.+)/, '$1***$2')\n        });\n      }\n    } catch (error) {\n      winstonLogger.error('邮件通知投递失败', {\n        notificationId: notification.id,\n        userId: notification.userId,\n        error: error.message\n      });\n    }\n  }\n\n  /**\n   * 投递短信通知\n   */\n  private async deliverSmsNotification(notification: Notification): Promise<void> {\n    try {\n      const userPhone = await this.getUserPhone(notification.userId);\n      \n      if (userPhone) {\n        await sendSms({\n          phone: userPhone,\n          template: 'notification',\n          params: {\n            title: notification.title,\n            content: notification.content\n          }\n        });\n        \n        winstonLogger.debug('短信通知投递成功', {\n          notificationId: notification.id,\n          userId: notification.userId,\n          phone: userPhone.replace(/(\\d{3})\\d{4}(\\d{4})/, '$1****$2')\n        });\n      }\n    } catch (error) {\n      winstonLogger.error('短信通知投递失败', {\n        notificationId: notification.id,\n        userId: notification.userId,\n        error: error.message\n      });\n    }\n  }\n\n  /**\n   * 投递推送通知\n   */\n  private async deliverPushNotification(notification: Notification): Promise<void> {\n    try {\n      // 这里可以集成第三方推送服务（如极光推送、个推等）\n      // 目前暂时记录日志\n      winstonLogger.debug('推送通知投递（暂未实现）', {\n        notificationId: notification.id,\n        userId: notification.userId\n      });\n    } catch (error) {\n      winstonLogger.error('推送通知投递失败', {\n        notificationId: notification.id,\n        userId: notification.userId,\n        error: error.message\n      });\n    }\n  }\n\n  /**\n   * 标记通知为已读\n   */\n  async markAsRead(notificationId: string, userId: string): Promise<void> {\n    const userNotificationsKey = `${CACHE_KEYS.NOTIFICATIONS}${userId}`;\n    const notifications = await cache.get(userNotificationsKey) || [];\n    \n    const notification = notifications.find((n: Notification) => n.id === notificationId);\n    if (!notification) {\n      throw ErrorFactory.notFound('通知不存在');\n    }\n    \n    if (!notification.readAt) {\n      notification.readAt = new Date();\n      notification.status = NotificationStatus.READ;\n      notification.updatedAt = new Date();\n      \n      await cache.set(userNotificationsKey, notifications, CACHE_TTL.VERY_LONG);\n      await this.updateUnreadCount(userId, -1);\n      \n      winstonLogger.debug('通知已标记为已读', {\n        notificationId,\n        userId\n      });\n    }\n  }\n\n  /**\n   * 标记所有通知为已读\n   */\n  async markAllAsRead(userId: string): Promise<number> {\n    const userNotificationsKey = `${CACHE_KEYS.NOTIFICATIONS}${userId}`;\n    const notifications = await cache.get(userNotificationsKey) || [];\n    \n    let markedCount = 0;\n    const now = new Date();\n    \n    notifications.forEach((notification: Notification) => {\n      if (!notification.readAt) {\n        notification.readAt = now;\n        notification.status = NotificationStatus.READ;\n        notification.updatedAt = now;\n        markedCount++;\n      }\n    });\n    \n    if (markedCount > 0) {\n      await cache.set(userNotificationsKey, notifications, CACHE_TTL.VERY_LONG);\n      await this.setUnreadCount(userId, 0);\n      \n      winstonLogger.info('所有通知已标记为已读', {\n        userId,\n        markedCount\n      });\n    }\n    \n    return markedCount;\n  }\n\n  /**\n   * 获取未读通知数量\n   */\n  async getUnreadCount(userId: string): Promise<number> {\n    const countKey = `${CACHE_KEYS.NOTIFICATIONS}unread:${userId}`;\n    const count = await cache.get(countKey);\n    return count || 0;\n  }\n\n  /**\n   * 生成通知ID\n   */\n  private generateNotificationId(): string {\n    return `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;\n  }\n\n  /**\n   * 渲染模板\n   */\n  private renderTemplate(template: string, data: Record<string, any>): string {\n    let rendered = template;\n    \n    Object.entries(data).forEach(([key, value]) => {\n      const placeholder = new RegExp(`\\{\\{${key}\\}\\}`, 'g');\n      rendered = rendered.replace(placeholder, String(value));\n    });\n    \n    return rendered;\n  }\n\n  /**\n   * 保存通知\n   */\n  private async saveNotification(notification: Notification): Promise<void> {\n    const notificationKey = `${CACHE_KEYS.NOTIFICATIONS}single:${notification.id}`;\n    await cache.set(notificationKey, notification, CACHE_TTL.VERY_LONG);\n  }\n\n  /**\n   * 更新未读计数\n   */\n  private async updateUnreadCount(userId: string, delta: number): Promise<void> {\n    const countKey = `${CACHE_KEYS.NOTIFICATIONS}unread:${userId}`;\n    const currentCount = await cache.get(countKey) || 0;\n    const newCount = Math.max(0, currentCount + delta);\n    await cache.set(countKey, newCount, CACHE_TTL.VERY_LONG);\n  }\n\n  /**\n   * 设置未读计数\n   */\n  private async setUnreadCount(userId: string, count: number): Promise<void> {\n    const countKey = `${CACHE_KEYS.NOTIFICATIONS}unread:${userId}`;\n    await cache.set(countKey, Math.max(0, count), CACHE_TTL.VERY_LONG);\n  }\n\n  /**\n   * 获取用户邮箱（简化实现）\n   */\n  private async getUserEmail(userId: string): Promise<string | null> {\n    // 这里应该从数据库或缓存获取用户邮箱\n    // 简化实现，返回null\n    return null;\n  }\n\n  /**\n   * 获取用户手机号（简化实现）\n   */\n  private async getUserPhone(userId: string): Promise<string | null> {\n    // 这里应该从数据库或缓存获取用户手机号\n    // 简化实现，返回null\n    return null;\n  }\n}
+    // 导出服务实例
+    , // 过滤过期通知\n    notifications = notifications.filter((n: Notification) => !n.expiresAt || n.expiresAt > new Date());\n\n    // 应用筛选条件\n    if (type) {\n      notifications = notifications.filter((n: Notification) => n.type === type);\n    }\n\n    if (status) {\n      notifications = notifications.filter((n: Notification) => n.status === status);\n    }\n\n    if (unreadOnly) {\n      notifications = notifications.filter((n: Notification) => !n.readAt);\n    }\n\n    const total = notifications.length;\n    const unreadCount = notifications.filter((n: Notification) => !n.readAt).length;\n\n    // 分页\n    const startIndex = (page - 1) * limit;\n    const paginatedNotifications = notifications.slice(startIndex, startIndex + limit);\n\n    return {\n      notifications: paginatedNotifications,\n      total,\n      unreadCount\n    };\n  }\n\n  /**\n   * 创建通知\n   */\n  private async createNotification(\n    userId: string, \n    request: SendNotificationRequest\n  ): Promise<Notification> {\n    const notificationId = this.generateNotificationId();\n    const now = new Date();\n    \n    let { title, content, channels, priority } = request;\n    \n    // 如果使用模板\n    if (request.templateId) {\n      const template = this.templates.get(request.templateId);\n      if (!template) {\n        throw ErrorFactory.badRequest('通知模板不存在');\n      }\n      \n      title = this.renderTemplate(template.title, request.templateData || {});\n      content = this.renderTemplate(template.content, request.templateData || {});\n      channels = template.channels;\n      priority = template.priority;\n    }\n    \n    const notification: Notification = {\n      id: notificationId,\n      userId,\n      type: request.type,\n      priority: priority || NotificationPriority.NORMAL,\n      title,\n      content,\n      data: request.data,\n      channels: channels || [NotificationChannel.IN_APP],\n      status: NotificationStatus.PENDING,\n      createdAt: now,\n      updatedAt: now,\n      expiresAt: request.expiresIn ? new Date(now.getTime() + request.expiresIn * 1000) : undefined\n    };\n    \n    // 保存通知到缓存\n    await this.saveNotification(notification);\n    \n    winstonLogger.info('通知创建成功', {\n      notificationId,\n      userId,\n      type: request.type,\n      priority\n    });\n    \n    return notification;\n  }\n\n  /**\n   * 投递通知\n   */\n  private async deliverNotification(notification: Notification): Promise<void> {\n    const deliveryPromises: Promise<void>[] = [];\n    \n    for (const channel of notification.channels) {\n      switch (channel) {\n        case NotificationChannel.IN_APP:\n          deliveryPromises.push(this.deliverInAppNotification(notification));\n          break;\n        case NotificationChannel.EMAIL:\n          deliveryPromises.push(this.deliverEmailNotification(notification));\n          break;\n        case NotificationChannel.SMS:\n          deliveryPromises.push(this.deliverSmsNotification(notification));\n          break;\n        case NotificationChannel.PUSH:\n          deliveryPromises.push(this.deliverPushNotification(notification));\n          break;\n      }\n    }\n    \n    // 等待所有渠道投递完成\n    await Promise.allSettled(deliveryPromises);\n    \n    // 更新通知状态\n    notification.status = NotificationStatus.SENT;\n    notification.updatedAt = new Date();\n    await this.saveNotification(notification);\n  }\n\n  /**\n   * 投递应用内通知\n   */\n  private async deliverInAppNotification(notification: Notification): Promise<void> {\n    try {\n      // 将通知添加到用户的通知列表\n      const userNotificationsKey = `${CACHE_KEYS.NOTIFICATIONS}${notification.userId}`;\n      const userNotifications = await cache.get(userNotificationsKey) || [];\n      \n      userNotifications.unshift(notification);\n      \n      // 保持最多1000条通知\n      if (userNotifications.length > 1000) {\n        userNotifications.splice(1000);\n      }\n      \n      await cache.set(userNotificationsKey, userNotifications, CACHE_TTL.VERY_LONG);\n      \n      // 更新未读计数\n      await this.updateUnreadCount(notification.userId, 1);\n      \n      winstonLogger.debug('应用内通知投递成功', {\n        notificationId: notification.id,\n        userId: notification.userId\n      });\n    } catch (error) {\n      winstonLogger.error('应用内通知投递失败', {\n        notificationId: notification.id,\n        userId: notification.userId,\n        error: error.message\n      });\n    }\n  }\n\n  /**\n   * 投递邮件通知\n   */\n  private async deliverEmailNotification(notification: Notification): Promise<void> {\n    try {\n      // 这里需要根据userId获取用户邮箱\n      // 简化处理，假设可以从缓存或数据库获取\n      const userEmail = await this.getUserEmail(notification.userId);\n      \n      if (userEmail) {\n        await emailService.sendNotification(\n          userEmail,\n          notification.title,\n          notification.content,\n          notification.data\n        );\n        \n        winstonLogger.debug('邮件通知投递成功', {\n          notificationId: notification.id,\n          userId: notification.userId,\n          email: userEmail.replace(/(.{3}).+(.{3}@.+)/, '$1***$2')\n        });\n      }\n    } catch (error) {\n      winstonLogger.error('邮件通知投递失败', {\n        notificationId: notification.id,\n        userId: notification.userId,\n        error: error.message\n      });\n    }\n  }\n\n  /**\n   * 投递短信通知\n   */\n  private async deliverSmsNotification(notification: Notification): Promise<void> {\n    try {\n      const userPhone = await this.getUserPhone(notification.userId);\n      \n      if (userPhone) {\n        await sendSms({\n          phone: userPhone,\n          template: 'notification',\n          params: {\n            title: notification.title,\n            content: notification.content\n          }\n        });\n        \n        winstonLogger.debug('短信通知投递成功', {\n          notificationId: notification.id,\n          userId: notification.userId,\n          phone: userPhone.replace(/(\\d{3})\\d{4}(\\d{4})/, '$1****$2')\n        });\n      }\n    } catch (error) {\n      winstonLogger.error('短信通知投递失败', {\n        notificationId: notification.id,\n        userId: notification.userId,\n        error: error.message\n      });\n    }\n  }\n\n  /**\n   * 投递推送通知\n   */\n  private async deliverPushNotification(notification: Notification): Promise<void> {\n    try {\n      // 这里可以集成第三方推送服务（如极光推送、个推等）\n      // 目前暂时记录日志\n      winstonLogger.debug('推送通知投递（暂未实现）', {\n        notificationId: notification.id,\n        userId: notification.userId\n      });\n    } catch (error) {\n      winstonLogger.error('推送通知投递失败', {\n        notificationId: notification.id,\n        userId: notification.userId,\n        error: error.message\n      });\n    }\n  }\n\n  /**\n   * 标记通知为已读\n   */\n  async markAsRead(notificationId: string, userId: string): Promise<void> {\n    const userNotificationsKey = `${CACHE_KEYS.NOTIFICATIONS}${userId}`;\n    const notifications = await cache.get(userNotificationsKey) || [];\n    \n    const notification = notifications.find((n: Notification) => n.id === notificationId);\n    if (!notification) {\n      throw ErrorFactory.notFound('通知不存在');\n    }\n    \n    if (!notification.readAt) {\n      notification.readAt = new Date();\n      notification.status = NotificationStatus.READ;\n      notification.updatedAt = new Date();\n      \n      await cache.set(userNotificationsKey, notifications, CACHE_TTL.VERY_LONG);\n      await this.updateUnreadCount(userId, -1);\n      \n      winstonLogger.debug('通知已标记为已读', {\n        notificationId,\n        userId\n      });\n    }\n  }\n\n  /**\n   * 标记所有通知为已读\n   */\n  async markAllAsRead(userId: string): Promise<number> {\n    const userNotificationsKey = `${CACHE_KEYS.NOTIFICATIONS}${userId}`;\n    const notifications = await cache.get(userNotificationsKey) || [];\n    \n    let markedCount = 0;\n    const now = new Date();\n    \n    notifications.forEach((notification: Notification) => {\n      if (!notification.readAt) {\n        notification.readAt = now;\n        notification.status = NotificationStatus.READ;\n        notification.updatedAt = now;\n        markedCount++;\n      }\n    });\n    \n    if (markedCount > 0) {\n      await cache.set(userNotificationsKey, notifications, CACHE_TTL.VERY_LONG);\n      await this.setUnreadCount(userId, 0);\n      \n      winstonLogger.info('所有通知已标记为已读', {\n        userId,\n        markedCount\n      });\n    }\n    \n    return markedCount;\n  }\n\n  /**\n   * 获取未读通知数量\n   */\n  async getUnreadCount(userId: string): Promise<number> {\n    const countKey = `${CACHE_KEYS.NOTIFICATIONS}unread:${userId}`;\n    const count = await cache.get(countKey);\n    return count || 0;\n  }\n\n  /**\n   * 生成通知ID\n   */\n  private generateNotificationId(): string {\n    return `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;\n  }\n\n  /**\n   * 渲染模板\n   */\n  private renderTemplate(template: string, data: Record<string, any>): string {\n    let rendered = template;\n    \n    Object.entries(data).forEach(([key, value]) => {\n      const placeholder = new RegExp(`\\{\\{${key}\\}\\}`, 'g');\n      rendered = rendered.replace(placeholder, String(value));\n    });\n    \n    return rendered;\n  }\n\n  /**\n   * 保存通知\n   */\n  private async saveNotification(notification: Notification): Promise<void> {\n    const notificationKey = `${CACHE_KEYS.NOTIFICATIONS}single:${notification.id}`;\n    await cache.set(notificationKey, notification, CACHE_TTL.VERY_LONG);\n  }\n\n  /**\n   * 更新未读计数\n   */\n  private async updateUnreadCount(userId: string, delta: number): Promise<void> {\n    const countKey = `${CACHE_KEYS.NOTIFICATIONS}unread:${userId}`;\n    const currentCount = await cache.get(countKey) || 0;\n    const newCount = Math.max(0, currentCount + delta);\n    await cache.set(countKey, newCount, CACHE_TTL.VERY_LONG);\n  }\n\n  /**\n   * 设置未读计数\n   */\n  private async setUnreadCount(userId: string, count: number): Promise<void> {\n    const countKey = `${CACHE_KEYS.NOTIFICATIONS}unread:${userId}`;\n    await cache.set(countKey, Math.max(0, count), CACHE_TTL.VERY_LONG);\n  }\n\n  /**\n   * 获取用户邮箱（简化实现）\n   */\n  private async getUserEmail(userId: string): Promise<string | null> {\n    // 这里应该从数据库或缓存获取用户邮箱\n    // 简化实现，返回null\n    return null;\n  }\n\n  /**\n   * 获取用户手机号（简化实现）\n   */\n  private async getUserPhone(userId: string): Promise<string | null> {\n    // 这里应该从数据库或缓存获取用户手机号\n    // 简化实现，返回null\n    return null;\n  }\n}
+    // 导出服务实例
+    const: notificationService = new NotificationService() };
 //# sourceMappingURL=notificationService.js.map

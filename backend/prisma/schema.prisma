@@ -1,339 +1,499 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// 闲置资源租赁平台数据库设计
+// 支持用户认证、资源管理、订单交易、支付、聊天、通知等功能
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
 // 用户表
 model User {
-  id                String            @id @default(cuid())
-  username          String            @unique
-  email             String            @unique
-  phone             String?           @unique
-  password          String?           // OAuth用户可能没有密码
+  id                String    @id @default(cuid())
+  email             String?   @unique
+  phone             String?   @unique
+  username          String    @unique
+  password          String?   // OAuth用户可能没有密码
   avatar            String?
-  creditScore       Int               @default(100)
-  verified          Boolean           @default(false)
-  isActive          Boolean           @default(true)
+  realName          String?
+  idCard            String?   // 身份证号（加密存储）
+  status            UserStatus @default(ACTIVE)
+  isVerified        Boolean   @default(false)
+  emailVerified     Boolean   @default(false)
+  phoneVerified     Boolean   @default(false)
+  
+  // OAuth信息
+  githubId          String?   @unique
+  wechatId          String?   @unique
+  googleId          String?   @unique
+  giteeId           String?   @unique
+  
+  // 个人信息
+  bio               String?
+  location          String?
+  latitude          Float?
+  longitude         Float?
+  city              String?
+  district          String?
+  
+  // 信用系统
+  creditScore       Int       @default(100)
+  totalRentals      Int       @default(0)
+  totalEarnings     Decimal   @default(0) @db.Decimal(10, 2)
+  
+  // 时间戳
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
   lastLoginAt       DateTime?
-  // OAuth相关字段
-  isOAuthUser       Boolean           @default(false) // 是否为第三方登录用户
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-
+  
   // 关联关系
-  resources         Resource[]        @relation("UserResources")
-  ordersAsRenter    Order[]           @relation("RenterOrders")
-  ordersAsOwner     Order[]           @relation("OwnerOrders")
-  reviewsGiven      Review[]          @relation("ReviewerReviews")
-  reviewsReceived   Review[]          @relation("RevieweeReviews")
-  messagesSent      Message[]         @relation("SenderMessages")
-  messagesReceived  Message[]         @relation("ReceiverMessages")
+  resources         Resource[]
+  orders            Order[]    @relation("OrderCustomer")
+  rentals           Order[]    @relation("OrderOwner")
+  sentMessages      Message[]  @relation("MessageSender")
+  receivedMessages  Message[]  @relation("MessageReceiver")
   notifications     Notification[]
-  paymentMethods    PaymentMethod[]
-  addresses         Address[]
-  userVerifications UserVerification[]
-  favorites         Favorite[]
-  oauthAccounts     OAuthAccount[]    // OAuth账户关联
-
+  reviews           Review[]   @relation("ReviewAuthor")
+  receivedReviews   Review[]   @relation("ReviewTarget")
+  payments          Payment[]
+  files             File[]
+  chatRooms         ChatRoom[] @relation("ChatParticipants")
+  
   @@map("users")
 }
 
-// 用户验证表
-model UserVerification {
-  id              String             @id @default(cuid())
-  userId          String
-  verificationType String
-  verifiedValue   String
-  verified        Boolean            @default(false)
-  verifiedAt      DateTime?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-
-  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, verificationType])
-  @@map("user_verifications")
-}
-
-// 注意：SQLite不支持枚举，以下为字符串常量参考
-// VerificationType: PHONE, EMAIL, IDENTITY, ZHIMA_CREDIT
-
-// 用户地址表
-model Address {
-  id        String   @id @default(cuid())
-  userId    String
-  label     String   // 地址标签：家、公司、学校等
-  address   String
-  latitude  Float?
-  longitude Float?
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("addresses")
+enum UserStatus {
+  ACTIVE    // 正常
+  SUSPENDED // 暂停
+  BANNED    // 封禁
+  DELETED   // 已删除
 }
 
 // 资源分类表
 model Category {
   id          String     @id @default(cuid())
   name        String     @unique
-  nameEn      String?
   description String?
   icon        String?
-  parentId    String?
-  sortOrder   Int        @default(0)
+  sort        Int        @default(0)
   isActive    Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
+  parentId    String?
   parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children    Category[] @relation("CategoryHierarchy")
   resources   Resource[]
-
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
   @@map("categories")
 }
 
 // 资源表
 model Resource {
-  id          String         @id @default(cuid())
-  title       String
-  description String
-  categoryId  String
-  price       Decimal
-  priceUnit   String         @default("day")
-  images      String         // JSON数组存储图片URL
-  location    String
-  latitude    Float
-  longitude   Float
-  status      String         @default("AVAILABLE")
-  rating      Decimal        @default(0.0)
-  reviewCount Int            @default(0)
-  tags        String? // JSON数组存储标签
-  ownerId     String
-  deposit     Decimal        @default(0)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-
+  id            String         @id @default(cuid())
+  title         String
+  description   String         @db.Text
+  categoryId    String
+  category      Category       @relation(fields: [categoryId], references: [id])
+  ownerId       String
+  owner         User           @relation(fields: [ownerId], references: [id])
+  
+  // 资源详情
+  images        String         @db.Text // JSON数组存储图片URL
+  pricePerDay   Decimal        @db.Decimal(8, 2)
+  pricePerHour  Decimal?       @db.Decimal(8, 2)
+  deposit       Decimal        @db.Decimal(8, 2)
+  minRentDays   Int            @default(1)
+  maxRentDays   Int            @default(30)
+  
+  // 位置信息
+  location      String
+  latitude      Float
+  longitude     Float
+  city          String
+  district      String
+  address       String?
+  
+  // 状态管理
+  status        ResourceStatus @default(AVAILABLE)
+  condition     ResourceCondition @default(GOOD)
+  isNegotiable  Boolean        @default(false)
+  
+  // 统计信息
+  viewCount     Int            @default(0)
+  favoriteCount Int            @default(0)
+  orderCount    Int            @default(0)
+  rating        Float?         @default(0)
+  
+  // 时间戳
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  publishedAt   DateTime?
+  
   // 关联关系
-  owner       User           @relation("UserResources", fields: [ownerId], references: [id])
-  category    Category       @relation(fields: [categoryId], references: [id])
-  orders      Order[]
-  reviews     Review[]
-  favorites   Favorite[]
-
+  orders        Order[]
+  reviews       Review[]
+  favorites     Favorite[]
+  
   @@map("resources")
 }
 
-// 注意：SQLite不支持枚举，以下为字符串常量参考
-// PriceUnit: HOUR, DAY, WEEK, MONTH
-// ResourceStatus: AVAILABLE, RENTED, MAINTENANCE, UNAVAILABLE
+enum ResourceStatus {
+  DRAFT      // 草稿
+  AVAILABLE  // 可租赁
+  RENTED     // 已租出
+  MAINTENANCE // 维护中
+  OFFLINE    // 下线
+}
+
+enum ResourceCondition {
+  NEW        // 全新
+  EXCELLENT  // 九成新
+  GOOD       // 八成新
+  FAIR       // 七成新
+  POOR       // 六成新以下
+}
 
 // 订单表
 model Order {
-  id              String        @id @default(cuid())
-  resourceId      String
-  renterId        String
+  id              String      @id @default(cuid())
+  orderNo         String      @unique // 订单号
+  customerId      String
+  customer        User        @relation("OrderCustomer", fields: [customerId], references: [id])
   ownerId         String
+  owner           User        @relation("OrderOwner", fields: [ownerId], references: [id])
+  resourceId      String
+  resource        Resource    @relation(fields: [resourceId], references: [id])
+  
+  // 租赁信息
   startDate       DateTime
   endDate         DateTime
-  totalPrice      Decimal
-  deposit         Decimal
-  status          String        @default("PENDING")
-  paymentStatus   String        @default("PENDING")
-  notes           String?
-  deliveryMethod  String         @default("PICKUP")
-  deliveryAddress String?
-  deliveryFee     Decimal       @default(0)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
+  actualStartDate DateTime?
+  actualEndDate   DateTime?
+  rentDays        Int
+  
+  // 价格信息
+  pricePerDay     Decimal     @db.Decimal(8, 2)
+  totalPrice      Decimal     @db.Decimal(10, 2)
+  deposit         Decimal     @db.Decimal(8, 2)
+  serviceFee      Decimal     @db.Decimal(8, 2) @default(0)
+  finalAmount     Decimal     @db.Decimal(10, 2)
+  
+  // 订单状态
+  status          OrderStatus @default(PENDING)
+  cancelReason    String?
+  refundAmount    Decimal?    @db.Decimal(10, 2)
+  
+  // 备注信息
+  customerNote    String?
+  ownerNote       String?
+  adminNote       String?
+  
+  // 时间戳
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  confirmedAt     DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  
   // 关联关系
-  resource        Resource      @relation(fields: [resourceId], references: [id])
-  renter          User          @relation("RenterOrders", fields: [renterId], references: [id])
-  owner           User          @relation("OwnerOrders", fields: [ownerId], references: [id])
   payments        Payment[]
-  messages        Message[]
   reviews         Review[]
-
+  chatRoom        ChatRoom?
+  
   @@map("orders")
 }
 
-// 注意：SQLite不支持枚举，以下为字符串常量参考
-// OrderStatus: PENDING, CONFIRMED, ACTIVE, COMPLETED, CANCELLED, DISPUTED
-// PaymentStatus: PENDING, PAID, REFUNDED, FAILED
-// DeliveryMethod: PICKUP, DELIVERY, EXPRESS
+enum OrderStatus {
+  PENDING      // 待确认
+  CONFIRMED    // 已确认
+  PAID         // 已支付
+  IN_PROGRESS  // 进行中
+  COMPLETED    // 已完成
+  CANCELLED    // 已取消
+  REFUNDED     // 已退款
+  DISPUTED     // 有争议
+}
 
-// 支付记录表
+// 支付表
 model Payment {
-  id             String        @id @default(cuid())
-  orderId        String
-  amount         Decimal
-  currency       String        @default("CNY")
-  paymentMethod  String
-  paymentGateway String
-  transactionId  String?       @unique
-  status         String        @default("PENDING")
-  paidAt         DateTime?
-  refundedAt     DateTime?
-  refundAmount   Decimal?
-  refundReason   String?
-  metadata       String?       // JSON存储额外信息
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
+  id              String        @id @default(cuid())
+  paymentNo       String        @unique
+  orderId         String
+  order           Order         @relation(fields: [orderId], references: [id])
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  
+  // 支付信息
+  amount          Decimal       @db.Decimal(10, 2)
+  method          PaymentMethod
+  channel         PaymentChannel
+  type            PaymentType
+  
+  // 第三方支付信息
+  thirdPartyId    String?       // 第三方支付流水号
+  thirdPartyData  String?       @db.Text // 第三方返回数据
+  
+  // 状态管理
+  status          PaymentStatus @default(PENDING)
+  failReason      String?
+  
+  // 时间戳
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  paidAt          DateTime?
+  
   @@map("payments")
 }
 
-// 注意：SQLite不支持枚举，以下为字符串常量参考
-// PaymentMethodType: ALIPAY, WECHAT, UNIONPAY, BALANCE
+enum PaymentMethod {
+  ALIPAY    // 支付宝
+  WECHAT    // 微信支付
+  BANK_CARD // 银行卡
+  BALANCE   // 余额
+}
 
-// 用户支付方式表
-model PaymentMethod {
-  id         String            @id @default(cuid())
-  userId     String
-  type       String
-  name       String
-  isDefault  Boolean           @default(false)
-  details    String            // JSON存储支付配置
-  isValid    Boolean           @default(true)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+enum PaymentChannel {
+  WEB       // 网页
+  APP       // 手机APP
+  H5        // 手机H5
+  SCAN      // 扫码
+}
 
-  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+enum PaymentType {
+  ORDER     // 订单支付
+  DEPOSIT   // 押金
+  REFUND    // 退款
+  WITHDRAW  // 提现
+}
 
-  @@map("payment_methods")
+enum PaymentStatus {
+  PENDING   // 待支付
+  SUCCESS   // 支付成功
+  FAILED    // 支付失败
+  CANCELLED // 已取消
+  REFUNDED  // 已退款
 }
 
 // 评价表
 model Review {
-  id         String   @id @default(cuid())
-  orderId    String   @unique
-  reviewerId String
-  revieweeId String
-  resourceId String
-  rating     Int
-  comment    String?
-  images     String?  // JSON数组存储图片URL
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  reviewer   User     @relation("ReviewerReviews", fields: [reviewerId], references: [id])
-  reviewee   User     @relation("RevieweeReviews", fields: [revieweeId], references: [id])
-  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  resourceId  String
+  resource    Resource @relation(fields: [resourceId], references: [id])
+  authorId    String
+  author      User     @relation("ReviewAuthor", fields: [authorId], references: [id])
+  targetId    String
+  target      User     @relation("ReviewTarget", fields: [targetId], references: [id])
+  
+  // 评价内容
+  rating      Int      // 1-5星
+  content     String   @db.Text
+  images      String?  @db.Text // JSON数组存储图片
+  
+  // 评价类型
+  type        ReviewType
+  
+  // 时间戳
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([orderId, authorId, type])
   @@map("reviews")
+}
+
+enum ReviewType {
+  RESOURCE  // 对资源的评价
+  USER      // 对用户的评价
 }
 
 // 收藏表
 model Favorite {
   id         String   @id @default(cuid())
   userId     String
+  user       User     @relation(fields: [userId], references: [id])
   resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id])
   createdAt  DateTime @default(now())
-
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-
+  
   @@unique([userId, resourceId])
   @@map("favorites")
 }
 
+// 聊天室表
+model ChatRoom {
+  id        String    @id @default(cuid())
+  orderId   String?   @unique
+  order     Order?    @relation(fields: [orderId], references: [id])
+  type      ChatType  @default(ORDER)
+  name      String?
+  
+  // 聊天室状态
+  isActive  Boolean   @default(true)
+  
+  // 时间戳
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  // 关联关系
+  participants User[] @relation("ChatParticipants")
+  messages     Message[]
+  
+  @@map("chat_rooms")
+}
+
+enum ChatType {
+  ORDER   // 订单聊天
+  GROUP   // 群聊
+  SYSTEM  // 系统通知
+}
+
 // 消息表
 model Message {
-  id         String   @id @default(cuid())
-  orderId    String
+  id         String      @id @default(cuid())
+  chatRoomId String
+  chatRoom   ChatRoom    @relation(fields: [chatRoomId], references: [id])
   senderId   String
-  receiverId String
-  content    String
-  type       String      @default("TEXT")
-  isRead     Boolean  @default(false)
-  metadata   String?  // JSON存储额外信息
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  sender     User     @relation("SenderMessages", fields: [senderId], references: [id])
-  receiver   User     @relation("ReceiverMessages", fields: [receiverId], references: [id])
-
+  sender     User        @relation("MessageSender", fields: [senderId], references: [id])
+  receiverId String?
+  receiver   User?       @relation("MessageReceiver", fields: [receiverId], references: [id])
+  
+  // 消息内容
+  content    String      @db.Text
+  type       MessageType @default(TEXT)
+  fileUrl    String?
+  fileName   String?
+  fileSize   Int?
+  
+  // 消息状态
+  isRead     Boolean     @default(false)
+  isDeleted  Boolean     @default(false)
+  
+  // 时间戳
+  createdAt  DateTime    @default(now())
+  readAt     DateTime?
+  
   @@map("messages")
 }
 
-// 注意：SQLite不支持枚举，以下为字符串常量参考
-// MessageType: TEXT, IMAGE, FILE, LOCATION, SYSTEM
+enum MessageType {
+  TEXT    // 文本
+  IMAGE   // 图片
+  FILE    // 文件
+  SYSTEM  // 系统消息
+}
 
 // 通知表
 model Notification {
   id        String           @id @default(cuid())
   userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  
+  // 通知内容
   title     String
-  message   String
-  type      String
+  content   String           @db.Text
+  type      NotificationType
+  data      String?          @db.Text // JSON数据
+  
+  // 通知状态
   isRead    Boolean          @default(false)
-  actionUrl String?
-  data      String?          // JSON存储额外数据
+  isDeleted Boolean          @default(false)
+  
+  // 时间戳
   createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  readAt    DateTime?
+  
   @@map("notifications")
 }
 
-// 注意：SQLite不支持枚举，以下为字符串常量参考
-// NotificationType: ORDER, MESSAGE, SYSTEM, PROMOTION, PAYMENT, REVIEW
-
-// OAuth账户表 - 管理第三方登录账户
-model OAuthAccount {
-  id            String        @id @default(cuid())
-  userId        String        // 关联的用户ID
-  provider      String        // OAuth提供商
-  providerId    String        // 第三方平台的用户ID
-  providerEmail String?       // 第三方平台的邮箱
-  displayName   String?       // 第三方平台的显示名称
-  avatar        String?       // 第三方平台的头像
-  accessToken   String?       // 访问令牌（加密存储）
-  refreshToken  String?       // 刷新令牌（加密存储）
-  expiresAt     DateTime?     // 令牌过期时间
-  scope         String?       // 授权范围
-  metadata      String?       // 额外的OAuth数据（JSON格式）
-  isActive      Boolean       @default(true) // 账户是否激活
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-
-  // 关联关系
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // 确保同一用户在同一平台只能有一个账户
-  @@unique([userId, provider])
-  // 确保同一平台的用户ID唯一
-  @@unique([provider, providerId])
-  @@map("oauth_accounts")
+enum NotificationType {
+  ORDER     // 订单通知
+  PAYMENT   // 支付通知
+  MESSAGE   // 消息通知
+  SYSTEM    // 系统通知
+  REVIEW    // 评价通知
+  PROMOTION // 推广通知
 }
 
-// 注意：SQLite不支持枚举，以下为字符串常量参考
-// OAuthProvider: WECHAT, QQ, WEIBO, ALIPAY, GOOGLE, GITHUB
+// 文件表
+model File {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  // 文件信息
+  originalName String
+  fileName     String  @unique
+  filePath     String
+  fileSize     Int
+  mimeType     String
+  fileHash     String? // 文件哈希，用于去重
+  
+  // 文件分类
+  category     FileCategory
+  isPublic     Boolean  @default(false)
+  
+  // 时间戳
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime?
+  
+  @@map("files")
+}
+
+enum FileCategory {
+  AVATAR    // 头像
+  RESOURCE  // 资源图片
+  MESSAGE   // 聊天文件
+  DOCUMENT  // 文档
+  OTHER     // 其他
+}
 
 // 系统配置表
 model SystemConfig {
   id        String   @id @default(cuid())
   key       String   @unique
-  value     String
-  type      String   @default("string")
-  isPublic  Boolean  @default(false)
+  value     String   @db.Text
+  type      ConfigType @default(STRING)
+  category  String   @default("system")
+  description String?
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
+  
   @@map("system_configs")
+}
+
+enum ConfigType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+  TEXT
+}
+
+// 日志表
+model SystemLog {
+  id        String    @id @default(cuid())
+  level     LogLevel  @default(INFO)
+  module    String
+  action    String
+  message   String    @db.Text
+  data      String?   @db.Text
+  userId    String?
+  ip        String?
+  userAgent String?   @db.Text
+  createdAt DateTime  @default(now())
+  
+  @@map("system_logs")
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+  FATAL
 }

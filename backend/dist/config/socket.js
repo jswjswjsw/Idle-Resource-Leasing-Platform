@@ -6,37 +6,59 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getConnectedUsers = exports.SocketManager = exports.setupSocket = void 0;
 const socket_io_1 = require("socket.io");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-// MessageType 现在是字符串类型，不需要从 @prisma/client 导入
-const chatService_1 = require("../services/chatService");
-const notificationService_1 = require("../services/notificationService");
+const chatService_1 = require("@/services/chatService");
+const notificationService_1 = require("@/services/notificationService");
+const logger_1 = require("@/middleware/logger");
 class SocketManager {
     constructor(server) {
-        this.connectedUsers = new Map();
-        this.socketToUser = new Map();
+        this.connectedUsers = new Map(); // userId -> socketId
+        this.socketToUser = new Map(); // socketId -> userId
+        this.userStatus = new Map(); // userId -> status
         this.io = new socket_io_1.Server(server, {
             cors: {
                 origin: process.env.FRONTEND_URL || "http://localhost:3000",
                 methods: ["GET", "POST"],
                 credentials: true
             },
-            transports: ['websocket', 'polling']
+            transports: ['websocket', 'polling'],
+            pingTimeout: 60000,
+            pingInterval: 25000
         });
         this.setupMiddleware();
         this.setupSocketHandlers();
+        this.startHeartbeat();
+        logger_1.winstonLogger.info('WebSocket 服务器已启动');
     }
     setupMiddleware() {
         this.io.use(async (socket, next) => {
             try {
                 const token = socket.handshake.auth.token || socket.handshake.query.token;
                 if (!token) {
+                    logger_1.winstonLogger.warn('WebSocket 连接被拒绝：未提供认证令牌', {
+                        socketId: socket.id,
+                        ip: socket.handshake.address
+                    });
                     return next(new Error('未提供认证令牌'));
                 }
                 const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
                 socket.userId = decoded.userId;
-                socket.username = decoded.username;
+                socket.username = decoded.username || '未知用户';
+                socket.userAgent = socket.handshake.headers['user-agent'];
+                socket.ip = socket.handshake.address;
+                logger_1.winstonLogger.info('WebSocket 认证成功', {
+                    userId: socket.userId,
+                    username: socket.username,
+                    socketId: socket.id,
+                    ip: socket.ip
+                });
                 next();
             }
             catch (error) {
+                logger_1.winstonLogger.warn('WebSocket 认证失败', {
+                    error: error.message,
+                    socketId: socket.id,
+                    ip: socket.handshake.address
+                });
                 next(new Error('认证失败'));
             }
         });

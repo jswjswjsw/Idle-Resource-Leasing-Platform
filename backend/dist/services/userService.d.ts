@@ -49,8 +49,8 @@ export declare class UserService {
                 createdAt: Date;
                 updatedAt: Date;
                 name: string;
-                userId: string;
                 type: string;
+                userId: string;
                 isDefault: boolean;
                 details: string;
                 isValid: boolean;
@@ -101,10 +101,10 @@ export declare class UserService {
             updatedAt: Date;
             name: string;
             description: string | null;
+            sortOrder: number;
             nameEn: string | null;
             icon: string | null;
             parentId: string | null;
-            sortOrder: number;
         };
         _count: {
             orders: number;
@@ -170,14 +170,14 @@ export declare class UserService {
             status: string;
             orderId: string;
             amount: import("@prisma/client/runtime/library").Decimal;
+            refundAmount: import("@prisma/client/runtime/library").Decimal | null;
+            metadata: string | null;
             currency: string;
             paymentGateway: string;
             transactionId: string | null;
             paidAt: Date | null;
             refundedAt: Date | null;
-            refundAmount: import("@prisma/client/runtime/library").Decimal | null;
             refundReason: string | null;
-            metadata: string | null;
         }[];
     } & {
         id: string;
@@ -198,11 +198,11 @@ export declare class UserService {
         deliveryFee: import("@prisma/client/runtime/library").Decimal;
     })[]>;
     findUserByPhone(phone: string): Promise<{
+        password: string | null;
         id: string;
         username: string;
         email: string;
         phone: string | null;
-        password: string | null;
         avatar: string | null;
         creditScore: number;
         verified: boolean;
@@ -217,11 +217,11 @@ export declare class UserService {
         username: string;
         email?: string | null;
     }): Promise<{
+        password: string | null;
         id: string;
         username: string;
         email: string;
         phone: string | null;
-        password: string | null;
         avatar: string | null;
         creditScore: number;
         verified: boolean;

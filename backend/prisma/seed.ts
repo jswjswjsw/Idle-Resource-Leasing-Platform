@@ -6,291 +6,330 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 开始插入种子数据...');
 
-  // 1. 创建示例用户
-  const hashedPassword = await bcrypt.hash('123456', 12);
+  // 1. 创建系统配置
+  await createSystemConfigs();
   
-  const users = await Promise.all([
-    prisma.user.create({
-      data: {
-        email: 'admin@example.com',
-        username: '管理员',
-        password: hashedPassword,
-        phone: '13800138001',
-        avatar: 'https://example.com/avatars/admin.jpg',
-        creditScore: 1000,
-        verified: true,
-        isActive: true
-      }
-    }),
-    prisma.user.create({
-      data: {
-        email: 'user1@example.com',
-        username: '张三',
-        password: hashedPassword,
-        phone: '13800138002',
-        avatar: 'https://example.com/avatars/user1.jpg',
-        creditScore: 950,
-        verified: true,
-        isActive: true
-      }
-    }),
-    prisma.user.create({
-      data: {
-        email: 'user2@example.com',
-        username: '李四',
-        password: hashedPassword,
-        phone: '13800138003',
-        avatar: 'https://example.com/avatars/user2.jpg',
-        creditScore: 880,
-        verified: false,
-        isActive: true
-      }
-    }),
-    prisma.user.create({
-      data: {
-        email: 'user3@example.com',
-        username: '王五',
-        password: hashedPassword,
-        phone: '13800138004',
-        avatar: 'https://example.com/avatars/user3.jpg',
-        creditScore: 750,
-        verified: true,
-        isActive: true
-      }
-    })
-  ]);
-
-  console.log(`✅ 创建了 ${users.length} 个用户`);
-
   // 2. 创建资源分类
-  const categories = await Promise.all([
-    prisma.category.create({
-      data: {
-        name: '电子设备',
-        nameEn: 'Electronics',
-        description: '手机、相机、电脑等电子设备',
-        icon: '📱',
-        sortOrder: 1
-      }
-    }),
-    prisma.category.create({
-      data: {
-        name: '家居用品',
-        nameEn: 'Home Appliances',
-        description: '家具、家电、厨具等家居用品',
-        icon: '🏠',
-        sortOrder: 2
-      }
-    }),
-    prisma.category.create({
-      data: {
-        name: '户外装备',
-        nameEn: 'Outdoor Equipment',
-        description: '帐篷、烧烤架、运动器材等户外装备',
-        icon: '🏕️',
-        sortOrder: 3
-      }
-    }),
-    prisma.category.create({
-      data: {
-        name: '交通工具',
-        nameEn: 'Transportation',
-        description: '汽车、电动车、自行车等交通工具',
-        icon: '🚗',
-        sortOrder: 4
-      }
-    }),
-    prisma.category.create({
-      data: {
-        name: '办公设备',
-        nameEn: 'Office Equipment',
-        description: '打印机、投影仪、办公桌椅等办公设备',
-        icon: '💼',
-        sortOrder: 5
-      }
-    })
-  ]);
+  await createCategories();
+  
+  // 3. 创建测试用户
+  await createTestUsers();
+  
+  // 4. 创建测试资源
+  await createTestResources();
 
-  console.log(`✅ 创建了 ${categories.length} 个分类`);
+  console.log('✅ 种子数据插入完成！');
+}
 
-  // 3. 创建示例资源
-  const resources = await Promise.all([
-    prisma.resource.create({
-      data: {
-        title: '佳能EOS R5专业相机',
-        description: '4500万像素全画幅专业相机，支持8K视频录制，适合专业摄影师和摄影爱好者使用。包含标准镜头和三脚架。',
-        categoryId: categories[0].id,
-        price: 150.00,
-        priceUnit: 'DAY',
-        images: JSON.stringify([
-          'https://example.com/images/canon-r5-1.jpg',
-          'https://example.com/images/canon-r5-2.jpg',
-          'https://example.com/images/canon-r5-3.jpg'
-        ]),
-        location: '北京市朝阳区三里屯',
-        latitude: 39.9388,
-        longitude: 116.4608,
-        ownerId: users[0].id,
-        deposit: 500.00,
-        tags: JSON.stringify(['相机', '摄影', '专业', '佳能', '全画幅']),
-        status: 'AVAILABLE'
-      }
-    }),
-    prisma.resource.create({
-      data: {
-        title: '大疆Mavic 3无人机',
-        description: '专业级航拍无人机，支持4K/60fps视频录制，飞行时间长达46分钟，配备哈苏相机。适合航拍、测绘、婚礼等场景。',
-        categoryId: categories[0].id,
-        price: 200.00,
-        priceUnit: 'DAY',
-        images: JSON.stringify([
-          'https://example.com/images/mavic3-1.jpg',
-          'https://example.com/images/mavic3-2.jpg'
-        ]),
-        location: '上海市浦东新区陆家嘴',
-        latitude: 31.2304,
-        longitude: 121.4737,
-        ownerId: users[1].id,
-        deposit: 800.00,
-        tags: JSON.stringify(['无人机', '航拍', '大疆', '4K', '专业']),
-        status: 'AVAILABLE'
-      }
-    }),
-    prisma.resource.create({
-      data: {
-        title: '苹果MacBook Pro 16寸',
-        description: 'M2 Pro芯片，32GB内存，1TB SSD，专业级笔记本电脑。适合视频剪辑、图形设计、编程开发等高强度工作。',
-        categoryId: categories[0].id,
-        price: 100.00,
-        priceUnit: 'DAY',
-        images: JSON.stringify([
-          'https://example.com/images/macbook-pro-1.jpg',
-          'https://example.com/images/macbook-pro-2.jpg'
-        ]),
-        location: '深圳市南山区科技园',
-        latitude: 22.5431,
-        longitude: 114.0579,
-        ownerId: users[2].id,
-        deposit: 300.00,
-        tags: JSON.stringify(['笔记本', '苹果', 'M2', '专业', '编程']),
-        status: 'AVAILABLE'
-      }
-    }),
-    prisma.resource.create({
-      data: {
-        title: '现代简约沙发床',
-        description: '可折叠沙发床，展开后是1.5米双人床，适合小户型或临时客人住宿。面料易清洁，框架稳固。',
-        categoryId: categories[1].id,
-        price: 50.00,
-        priceUnit: 'DAY',
-        images: JSON.stringify([
-          'https://example.com/images/sofa-bed-1.jpg',
-          'https://example.com/images/sofa-bed-2.jpg'
-        ]),
-        location: '广州市天河区珠江新城',
-        latitude: 23.1291,
-        longitude: 113.2644,
-        ownerId: users[3].id,
-        deposit: 100.00,
-        tags: JSON.stringify(['沙发床', '家具', '简约', '折叠', '小户型']),
-        status: 'AVAILABLE'
-      }
-    }),
-    prisma.resource.create({
-      data: {
-        title: '露营帐篷套装',
-        description: '4-6人自动帐篷，包含地席、睡袋、营地灯等全套装备。适合家庭露营、朋友聚会等户外活动。',
-        categoryId: categories[2].id,
-        price: 80.00,
-        priceUnit: 'DAY',
-        images: JSON.stringify([
-          'https://example.com/images/tent-1.jpg',
-          'https://example.com/images/tent-2.jpg'
-        ]),
-        location: '杭州市西湖区',
-        latitude: 30.2741,
-        longitude: 120.1551,
-        ownerId: users[0].id,
-        deposit: 150.00,
-        tags: JSON.stringify(['帐篷', '露营', '户外', '套装', '家庭']),
-        status: 'AVAILABLE'
-      }
-    })
-  ]);
+// 创建系统配置
+async function createSystemConfigs() {
+  console.log('📋 创建系统配置...');
+  
+  const configs = [
+    {
+      key: 'site_name',
+      value: '闲置资源租赁平台',
+      type: 'STRING',
+      category: 'basic',
+      description: '网站名称'
+    },
+    {
+      key: 'site_description',
+      value: '让闲置资源流动起来，创造更多价值',
+      type: 'STRING',
+      category: 'basic',
+      description: '网站描述'
+    },
+    {
+      key: 'default_credit_score',
+      value: '100',
+      type: 'NUMBER',
+      category: 'user',
+      description: '新用户默认信用分'
+    },
+    {
+      key: 'min_rent_days',
+      value: '1',
+      type: 'NUMBER',
+      category: 'business',
+      description: '最小租赁天数'
+    },
+    {
+      key: 'max_rent_days',
+      value: '30',
+      type: 'NUMBER',
+      category: 'business',
+      description: '最大租赁天数'
+    },
+    {
+      key: 'service_fee_rate',
+      value: '0.05',
+      type: 'NUMBER',
+      category: 'business',
+      description: '平台服务费率'
+    },
+    {
+      key: 'auto_confirm_hours',
+      value: '72',
+      type: 'NUMBER',
+      category: 'business',
+      description: '订单自动确认小时数'
+    }
+  ];
 
-  console.log(`✅ 创建了 ${resources.length} 个资源`);
+  for (const config of configs) {
+    await prisma.systemConfig.upsert({
+      where: { key: config.key },
+      update: config,
+      create: config
+    });
+  }
+}
 
-  // 4. 创建用户地址
-  const addresses = await Promise.all([
-    prisma.address.create({
-      data: {
-        userId: users[0].id,
-        label: '家',
-        address: '北京市朝阳区三里屯SOHO A座',
-        latitude: 39.9388,
-        longitude: 116.4608,
-        isDefault: true
-      }
-    }),
-    prisma.address.create({
-      data: {
-        userId: users[1].id,
-        label: '公司',
-        address: '上海市浦东新区陆家嘴金融中心',
-        latitude: 31.2304,
-        longitude: 121.4737,
-        isDefault: true
-      }
-    })
-  ]);
+// 创建资源分类
+async function createCategories() {
+  console.log('📂 创建资源分类...');
+  
+  // 一级分类
+  const electronics = await prisma.category.upsert({
+    where: { name: '数码电子' },
+    update: {},
+    create: {
+      name: '数码电子',
+      description: '手机、电脑、相机等电子产品',
+      icon: '📱',
+      sort: 1
+    }
+  });
 
-  console.log(`✅ 创建了 ${addresses.length} 个地址`);
+  const tools = await prisma.category.upsert({
+    where: { name: '工具设备' },
+    update: {},
+    create: {
+      name: '工具设备',
+      description: '各类工具和设备',
+      icon: '🔧',
+      sort: 2
+    }
+  });
 
-  // 5. 创建系统配置
-  const systemConfigs = await Promise.all([
-    prisma.systemConfig.create({
-      data: {
-        key: 'siteName',
-        value: '闲置资源租赁平台',
-        type: 'string',
-        isPublic: true
-      }
-    }),
-    prisma.systemConfig.create({
-      data: {
-        key: 'maxRentalDays',
-        value: '30',
-        type: 'number',
-        isPublic: true
-      }
-    }),
-    prisma.systemConfig.create({
-      data: {
-        key: 'depositPercentage',
-        value: '0.3',
-        type: 'number',
-        isPublic: true
-      }
-    })
-  ]);
+  const vehicles = await prisma.category.upsert({
+    where: { name: '交通工具' },
+    update: {},
+    create: {
+      name: '交通工具',
+      description: '汽车、自行车、电动车等',
+      icon: '🚗',
+      sort: 3
+    }
+  });
 
-  console.log(`✅ 创建了 ${systemConfigs.length} 个系统配置`);
+  const sports = await prisma.category.upsert({
+    where: { name: '运动户外' },
+    update: {},
+    create: {
+      name: '运动户外',
+      description: '运动器材、户外用品',
+      icon: '⚽',
+      sort: 4
+    }
+  });
 
-  console.log('🎉 种子数据插入完成！');
-  console.log('📊 数据概览：');
-  console.log(`   - 用户: ${users.length}`);
-  console.log(`   - 分类: ${categories.length}`);
-  console.log(`   - 资源: ${resources.length}`);
-  console.log(`   - 地址: ${addresses.length}`);
-  console.log(`   - 系统配置: ${systemConfigs.length}`);
+  const home = await prisma.category.upsert({
+    where: { name: '家居用品' },
+    update: {},
+    create: {
+      name: '家居用品',
+      description: '家具、家电、生活用品',
+      icon: '🏠',
+      sort: 5
+    }
+  });
+
+  // 二级分类
+  const subCategories = [
+    // 数码电子子分类
+    { name: '手机数码', parentId: electronics.id, description: '手机、平板、智能手表等', icon: '📱' },
+    { name: '电脑办公', parentId: electronics.id, description: '笔记本、台式机、办公设备', icon: '💻' },
+    { name: '摄影摄像', parentId: electronics.id, description: '相机、摄像机、镜头等', icon: '📷' },
+    { name: '游戏设备', parentId: electronics.id, description: '游戏机、VR设备等', icon: '🎮' },
+    
+    // 工具设备子分类
+    { name: '电动工具', parentId: tools.id, description: '电钻、切割机等电动工具', icon: '⚡' },
+    { name: '手动工具', parentId: tools.id, description: '扳手、螺丝刀等手动工具', icon: '🔨' },
+    { name: '测量仪器', parentId: tools.id, description: '测距仪、水平仪等', icon: '📏' },
+    { name: '园艺工具', parentId: tools.id, description: '割草机、修枝剪等', icon: '🌿' },
+    
+    // 交通工具子分类
+    { name: '汽车', parentId: vehicles.id, description: '轿车、SUV、面包车等', icon: '🚗' },
+    { name: '自行车', parentId: vehicles.id, description: '山地车、公路车、电动车', icon: '🚴' },
+    { name: '摩托车', parentId: vehicles.id, description: '摩托车、电动摩托车', icon: '🏍️' },
+    
+    // 运动户外子分类
+    { name: '健身器材', parentId: sports.id, description: '跑步机、哑铃、瑜伽垫等', icon: '💪' },
+    { name: '户外装备', parentId: sports.id, description: '帐篷、睡袋、登山包等', icon: '🏕️' },
+    { name: '球类运动', parentId: sports.id, description: '足球、篮球、网球等', icon: '⚽' },
+    
+    // 家居用品子分类
+    { name: '家具', parentId: home.id, description: '桌椅、沙发、床等', icon: '🪑' },
+    { name: '家电', parentId: home.id, description: '洗衣机、冰箱、空调等', icon: '🔌' },
+    { name: '厨房用品', parentId: home.id, description: '锅具、餐具、小家电等', icon: '🍳' }
+  ];
+
+  for (const [index, subCategory] of subCategories.entries()) {
+    await prisma.category.upsert({
+      where: { name: subCategory.name },
+      update: {},
+      create: {
+        ...subCategory,
+        sort: index + 1
+      }
+    });
+  }
+}
+
+// 创建测试用户
+async function createTestUsers() {
+  console.log('👥 创建测试用户...');
+  
+  const hashedPassword = await bcrypt.hash('123456', 10);
+  
+  const users = [
+    {
+      email: 'admin@trade.com',
+      username: 'admin',
+      password: hashedPassword,
+      realName: '管理员',
+      status: 'ACTIVE',
+      isVerified: true,
+      emailVerified: true,
+      location: '北京市朝阳区',
+      city: '北京市',
+      district: '朝阳区',
+      creditScore: 100
+    },
+    {
+      email: 'user1@trade.com',
+      username: 'user1',
+      password: hashedPassword,
+      realName: '张三',
+      status: 'ACTIVE',
+      isVerified: true,
+      emailVerified: true,
+      location: '上海市浦东新区',
+      city: '上海市',
+      district: '浦东新区',
+      creditScore: 95
+    },
+    {
+      email: 'user2@trade.com',
+      username: 'user2',
+      password: hashedPassword,
+      realName: '李四',
+      status: 'ACTIVE',
+      isVerified: true,
+      emailVerified: true,
+      location: '广州市天河区',
+      city: '广州市',
+      district: '天河区',
+      creditScore: 98
+    }
+  ];
+
+  for (const userData of users) {
+    await prisma.user.upsert({
+      where: { email: userData.email },
+      update: {},
+      create: userData
+    });
+  }
+}
+
+// 创建测试资源
+async function createTestResources() {
+  console.log('📦 创建测试资源...');
+  
+  // 获取用户和分类
+  const users = await prisma.user.findMany({ take: 3 });
+  const categories = await prisma.category.findMany({
+    where: { parentId: { not: null } }
+  });
+  
+  if (users.length === 0 || categories.length === 0) {
+    console.log('跳过创建测试资源：缺少用户或分类数据');
+    return;
+  }
+
+  const resources = [
+    {
+      title: 'MacBook Pro 13寸 2023款',
+      description: '全新MacBook Pro，M2芯片，16GB内存，512GB存储。适合办公、开发、设计等用途。',
+      categoryId: categories.find(c => c.name === '电脑办公')?.id || categories[0].id,
+      ownerId: users[1].id,
+      images: JSON.stringify(['/images/macbook1.jpg', '/images/macbook2.jpg']),
+      pricePerDay: 150.00,
+      deposit: 3000.00,
+      location: '上海市浦东新区张江高科技园区',
+      latitude: 31.2034,
+      longitude: 121.5944,
+      city: '上海市',
+      district: '浦东新区',
+      condition: 'EXCELLENT',
+      minRentDays: 1,
+      maxRentDays: 30
+    },
+    {
+      title: 'Canon EOS R5 专业相机',
+      description: '佳能专业全画幅无反相机，4500万像素，8K视频录制。包含24-70mm f/2.8镜头。',
+      categoryId: categories.find(c => c.name === '摄影摄像')?.id || categories[1].id,
+      ownerId: users[2].id,
+      images: JSON.stringify(['/images/canon1.jpg', '/images/canon2.jpg']),
+      pricePerDay: 300.00,
+      deposit: 8000.00,
+      location: '广州市天河区珠江新城',
+      latitude: 23.1204,
+      longitude: 113.3208,
+      city: '广州市',
+      district: '天河区',
+      condition: 'GOOD',
+      minRentDays: 1,
+      maxRentDays: 7
+    },
+    {
+      title: '小牛电动车 NGT',
+      description: '小牛电动车NGT，续航80公里，智能锁车，GPS定位。适合城市通勤。',
+      categoryId: categories.find(c => c.name === '自行车')?.id || categories[2].id,
+      ownerId: users[1].id,
+      images: JSON.stringify(['/images/niu1.jpg', '/images/niu2.jpg']),
+      pricePerDay: 50.00,
+      deposit: 1500.00,
+      location: '北京市朝阳区国贸CBD',
+      latitude: 39.9175,
+      longitude: 116.4560,
+      city: '北京市',
+      district: '朝阳区',
+      condition: 'GOOD',
+      minRentDays: 1,
+      maxRentDays: 15
+    }
+  ];
+
+  for (const resourceData of resources) {
+    await prisma.resource.create({
+      data: {
+        ...resourceData,
+        status: 'AVAILABLE',
+        publishedAt: new Date()
+      }
+    });
+  }
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (e) => {
-    console.error(e);
-    await prisma.$disconnect();
+  .catch((e) => {
+    console.error('❌ 种子数据插入失败:', e);
     process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
   });

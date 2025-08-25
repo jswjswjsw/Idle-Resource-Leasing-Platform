@@ -4,179 +4,173 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-const { body, param, query, validationResult } = require('express-validator');
-const auth_1 = require("..//middleware/auth");
-const paymentService_1 = require("..//services/paymentService");
-const alipayService_1 = require("..//services/alipayService");
-const wechatPayService_1 = require("..//services/wechatPayService");
-const errorHandler_1 = require("..//utils/errorHandler");
-const asyncHandler_1 = require("..//middleware/asyncHandler");
-const database_1 = require("..//config/database");
+const paymentService_1 = require("@/services/paymentService");
+const asyncHandler_1 = require("@/middleware/asyncHandler");
+const auth_1 = require("@/middleware/auth");
+const validation_1 = require("@/middleware/validation");
+const joi_1 = __importDefault(require("joi"));
 const router = express_1.default.Router();
-// 创建支付订单
-router.post('/create', auth_1.authenticate, [
-    body('orderId').isString().notEmpty().withMessage('订单ID不能为空'),
-    body('amount').isNumeric().withMessage('金额必须是数字'),
-    body('paymentMethod').isIn(['alipay', 'wechat_pay', 'balance']).withMessage('支付方式无效'),
-    body('paymentType').optional().isIn(['web', 'wap', 'app']).withMessage('支付类型无效')
-], (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        throw new errorHandler_1.AppError('输入验证失败', 400, errors.array());
-    }
-    const { orderId, amount, paymentMethod, paymentType, returnUrl, notifyUrl } = req.body;
-    // 验证订单
-    const order = await database_1.prisma.order.findFirst({
-        where: { id: orderId, renterId: req.user.userId },
-        include: { resource: true }
-    });
-    if (!order) {
-        throw new errorHandler_1.AppError('订单不存在或无权访问', 404);
-    }
-    let paymentData;
-    switch (paymentMethod) {
-        case 'alipay':
-            if (paymentType === 'wap') {
-                paymentData = await alipayService_1.alipayService.createWapOrder(orderId, amount, `租赁：${order.resource.title}`, returnUrl, notifyUrl);
-            }
-            else {
-                paymentData = await alipayService_1.alipayService.createOrder(orderId, amount, `租赁：${order.resource.title}`, returnUrl, notifyUrl);
-            }
-            break;
-        case 'wechat_pay':
-            if (!req.body.openid) {
-                throw new errorHandler_1.AppError('微信支付需要openid', 400);
-            }
-            paymentData = await wechatPayService_1.wechatPayService.createOrder(orderId, amount, `租赁：${order.resource.title}`, req.body.openid, notifyUrl);
-            break;
-        default:
-            paymentData = await paymentService_1.paymentService.createPayment({
-                orderId,
-                amount,
-                paymentMethod,
-                userId: req.user.userId
-            });
-    }
+/**
+ * 获取可用的支付方式
+ */
+router.get('/methods', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const methods = paymentService_1.paymentService.getAvailablePaymentMethods();
     res.json({
         success: true,
-        data: paymentData
+        message: '获取支付方式成功',
+        data: methods
     });
 }));
-// 查询支付状态
-router.get('/status/:orderId', auth_1.authenticate, [
-    param('orderId').isString().notEmpty().withMessage('订单ID不能为空')
-], (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        throw new errorHandler_1.AppError('输入验证失败', 400, errors.array());
-    }
-    const { orderId } = req.params;
-    const { paymentMethod } = req.query;
-    let status;
-    switch (paymentMethod) {
-        case 'alipay':
-            status = await alipayService_1.alipayService.queryOrderStatus(orderId);
-            break;
-        case 'wechat_pay':
-            status = await wechatPayService_1.wechatPayService.queryOrderStatus(orderId);
-            break;
-        default:
-            status = await paymentService_1.paymentService.getPaymentStatus(orderId);
-    }
+/**
+ * 创建支付订单
+ */
+router.post('/create', auth_1.authenticate, (0, validation_1.validate)({
+    body: joi_1.default.object({
+        orderId: joi_1.default.string().required().min(1).max(100).messages({
+            'string.empty': '订单ID不能为空',
+            'string.max': '订单ID长度不能超过100个字符',
+            'any.required': '订单ID是必需的'
+        }),
+        amount: joi_1.default.number().required().min(1).max(100000000).messages({
+            'number.base': '支付金额必须是数字',
+            'number.min': '支付金额必须大于0',
+            'number.max': '支付金额不能超过100万元',
+            'any.required': '支付金额是必需的'
+        }),
+        title: joi_1.default.string().required().min(1).max(200).messages({
+            'string.empty': '订单标题不能为空',
+            'string.max': '订单标题长度不能超过200个字符',
+            'any.required': '订单标题是必需的'
+        }),
+        description: joi_1.default.string().optional().max(500).messages({
+            'string.max': '订单描述长度不能超过500个字符'
+        }),
+        method: joi_1.default.string().optional().valid(...Object.values(paymentService_1.PaymentMethod)).messages({
+            'any.only': '不支持的支付方式'
+        }),
+        returnUrl: joi_1.default.string().optional().uri().messages({
+            'string.uri': '返回URL格式不正确'
+        }),
+        notifyUrl: joi_1.default.string().optional().uri().messages({
+            'string.uri': '通知URL格式不正确'
+        })
+    })
+}), (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { orderId, amount, title, description, method, returnUrl, notifyUrl } = req.body;
+    const userId = req.user.id;
+    const orderInfo = {
+        orderId,
+        amount,
+        title,
+        description,
+        userId,
+        returnUrl,
+        notifyUrl
+    };
+    const result = await paymentService_1.paymentService.createPayment(orderInfo, method);
     res.json({
         success: true,
-        data: status
-    });
-}));
-// 支付宝异步通知
-router.post('/alipay/notify', express_1.default.raw({ type: 'application/x-www-form-urlencoded' }), (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const result = await alipayService_1.alipayService.handleNotify(req.body);
-    res.send(result);
-}));
-// 微信支付异步通知
-router.post('/wechat/notify', express_1.default.raw({ type: 'application/json' }), (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const signature = req.headers['wechatpay-signature'];
-    const serial = req.headers['wechatpay-serial'];
-    const nonce = req.headers['wechatpay-nonce'];
-    const timestamp = req.headers['wechatpay-timestamp'];
-    const result = await wechatPayService_1.wechatPayService.handleNotify(req.body, signature, serial, nonce, timestamp);
-    res.json(result);
-}));
-// 申请退款
-router.post('/refund', auth_1.authenticate, [
-    body('orderId').isString().notEmpty().withMessage('订单ID不能为空'),
-    body('reason').isString().notEmpty().withMessage('退款原因不能为空'),
-    body('refundAmount').optional().isNumeric().withMessage('退款金额必须是数字')
-], (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        throw new errorHandler_1.AppError('输入验证失败', 400, errors.array());
-    }
-    const { orderId, reason, refundAmount } = req.body;
-    const userId = req.user.userId;
-    // 验证订单所有权
-    const order = await database_1.prisma.order.findFirst({
-        where: { id: orderId, renterId: userId }
-    });
-    if (!order) {
-        throw new errorHandler_1.AppError('订单不存在或无权访问', 404);
-    }
-    let result;
-    const payment = await database_1.prisma.payment.findFirst({
-        where: { orderId, status: 'PAID' }
-    });
-    if (payment?.paymentMethod === 'ALIPAY') {
-        result = await alipayService_1.alipayService.refund(orderId, refundAmount || Number(order.totalPrice), reason);
-    }
-    else if (payment?.paymentMethod === 'WECHAT') {
-        result = await wechatPayService_1.wechatPayService.refund(orderId, refundAmount || Number(order.totalPrice), reason);
-    }
-    else {
-        result = await paymentService_1.paymentService.requestRefund(orderId, reason, userId);
-    }
-    res.json({
-        success: true,
+        message: '支付订单创建成功',
         data: result
     });
 }));
-// 获取用户支付记录
-router.get('/history', auth_1.authenticate, [
-    query('page').optional().isInt({ min: 1 }).withMessage('页码必须为正整数'),
-    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('每页数量必须在1-100之间')
-], (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        throw new errorHandler_1.AppError('输入验证失败', 400, errors.array());
+/**
+ * 查询支付状态
+ */
+router.get('/status/:paymentId', auth_1.authenticate, (0, validation_1.validate)({
+    params: joi_1.default.object({
+        paymentId: joi_1.default.string().required().messages({
+            'string.empty': '支付ID不能为空',
+            'any.required': '支付ID是必需的'
+        })
+    })
+}), (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { paymentId } = req.params;
+    const status = await paymentService_1.paymentService.queryPaymentStatus(paymentId);
+    res.json({
+        success: true,
+        message: '查询支付状态成功',
+        data: {
+            paymentId,
+            status
+        }
+    });
+}));
+/**
+ * 获取支付详情
+ */
+router.get('/info/:paymentId', auth_1.authenticate, (0, validation_1.validate)({
+    params: joi_1.default.object({
+        paymentId: joi_1.default.string().required().messages({
+            'string.empty': '支付ID不能为空',
+            'any.required': '支付ID是必需的'
+        })
+    })
+}), (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { paymentId } = req.params;
+    const paymentInfo = await paymentService_1.paymentService.getPaymentInfo(paymentId);
+    // 检查权限：只能查看自己的支付信息
+    if (paymentInfo.userId && paymentInfo.userId !== req.user.id) {
+        return res.status(403).json({
+            success: false,
+            message: '无权查看此支付信息'
+        });
     }
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const result = await paymentService_1.paymentService.getUserPayments(req.user.userId, { page, limit });
     res.json({
         success: true,
-        data: result
+        message: '获取支付详情成功',
+        data: paymentInfo
     });
 }));
-// 获取支付配置
-router.get('/config', (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const config = await paymentService_1.paymentService.getPaymentConfig();
-    res.json({
-        success: true,
-        data: config
-    });
-}));
-// 获取支付详情
-router.get('/:paymentId', auth_1.authenticate, [
-    param('paymentId').isString().notEmpty().withMessage('支付ID不能为空')
-], (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        throw new errorHandler_1.AppError('输入验证失败', 400, errors.array());
+/**
+ * 取消支付
+ */
+router.post('/cancel/:paymentId', auth_1.authenticate, (0, validation_1.validate)({
+    params: joi_1.default.object({
+        paymentId: joi_1.default.string().required().messages({
+            'string.empty': '支付ID不能为空',
+            'any.required': '支付ID是必需的'
+        })
+    })
+}), (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { paymentId } = req.params;
+    // 检查权限
+    const paymentInfo = await paymentService_1.paymentService.getPaymentInfo(paymentId);
+    if (paymentInfo.userId && paymentInfo.userId !== req.user.id) {
+        return res.status(403).json({
+            success: false,
+            message: '无权取消此支付'
+        });
     }
-    const payment = await paymentService_1.paymentService.getPaymentStatus(req.params.paymentId);
+    await paymentService_1.paymentService.cancelPayment(paymentId);
     res.json({
         success: true,
-        data: payment
+        message: '支付已取消'
     });
 }));
-exports.default = router;
+/**
+ * 申请退款
+ */
+router.post('/refund', auth_1.authenticate, (0, validation_1.validate)({
+    body: joi_1.default.object({
+        paymentId: joi_1.default.string().required().messages({
+            'string.empty': '支付ID不能为空',
+            'any.required': '支付ID是必需的'
+        }),
+        refundAmount: joi_1.default.number().required().min(1).messages({
+            'number.base': '退款金额必须是数字',
+            'number.min': '退款金额必须大于0',
+            'any.required': '退款金额是必需的'
+        }),
+        reason: joi_1.default.string().required().min(1).max(200).messages({
+            'string.empty': '退款原因不能为空',
+            'string.max': '退款原因长度不能超过200个字符',
+            'any.required': '退款原因是必需的'
+        })
+    })
+}), (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { paymentId, refundAmount, reason } = req.body;
+    n;
+    n;
+})); // 检查权限\n    const paymentInfo = await paymentService.getPaymentInfo(paymentId);\n    if (paymentInfo.userId && paymentInfo.userId !== req.user.id) {\n      return res.status(403).json({\n        success: false,\n        message: '无权对此支付申请退款'\n      });\n    }\n    \n    const result = await paymentService.refundPayment(paymentId, refundAmount, reason);\n    \n    res.json({\n      success: true,\n      message: '退款申请已提交',\n      data: result\n    });\n  })\n);\n\n/**\n * 获取支付事件历史\n */\nrouter.get('/events/:paymentId',\n  authenticate,\n  validate({\n    params: Joi.object({\n      paymentId: Joi.string().required().messages({\n        'string.empty': '支付ID不能为空',\n        'any.required': '支付ID是必需的'\n      })\n    })\n  }),\n  asyncHandler(async (req, res) => {\n    const { paymentId } = req.params;\n    \n    // 检查权限\n    const paymentInfo = await paymentService.getPaymentInfo(paymentId);\n    if (paymentInfo.userId && paymentInfo.userId !== req.user.id) {\n      return res.status(403).json({\n        success: false,\n        message: '无权查看此支付事件'\n      });\n    }\n    \n    const events = await paymentService.getPaymentEvents(paymentId);\n    \n    res.json({\n      success: true,\n      message: '获取支付事件成功',\n      data: events\n    });\n  })\n);\n\n/**\n * 支付宝回调接口\n */\nrouter.post('/notify/alipay',\n  asyncHandler(async (req, res) => {\n    try {\n      winstonLogger.info('收到支付宝回调', { body: req.body });\n      \n      const callback = await paymentService.handlePaymentCallback(\n        PaymentMethod.ALIPAY_SANDBOX,\n        req.body\n      );\n      \n      if (callback) {\n        winstonLogger.info('支付宝回调处理成功', callback);\n        res.send('success'); // 支付宝要求返回success\n      } else {\n        winstonLogger.warn('支付宝回调验证失败');\n        res.send('fail');\n      }\n    } catch (error) {\n      winstonLogger.error('支付宝回调处理异常', { error: error.message });\n      res.send('fail');\n    }\n  })\n);\n\n/**\n * 微信支付回调接口\n */\nrouter.post('/notify/wechat',\n  asyncHandler(async (req, res) => {\n    try {\n      winstonLogger.info('收到微信支付回调', { body: req.body });\n      \n      const callback = await paymentService.handlePaymentCallback(\n        PaymentMethod.WECHAT_SANDBOX,\n        req.body\n      );\n      \n      if (callback) {\n        winstonLogger.info('微信支付回调处理成功', callback);\n        res.send('<xml><return_code><![CDATA[SUCCESS]]></return_code><return_msg><![CDATA[OK]]></return_msg></xml>');\n      } else {\n        winstonLogger.warn('微信支付回调验证失败');\n        res.send('<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[验证失败]]></return_msg></xml>');\n      }\n    } catch (error) {\n      winstonLogger.error('微信支付回调处理异常', { error: error.message });\n      res.send('<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[处理异常]]></return_msg></xml>');\n    }\n  })\n);\n\n/**\n * 模拟支付成功（仅测试环境）\n */\nrouter.post('/simulate-success/:paymentId',\n  authenticate,\n  validate({\n    params: Joi.object({\n      paymentId: Joi.string().required().messages({\n        'string.empty': '支付ID不能为空',\n        'any.required': '支付ID是必需的'\n      })\n    })\n  }),\n  asyncHandler(async (req, res) => {\n    if (process.env.NODE_ENV === 'production') {\n      return res.status(403).json({\n        success: false,\n        message: '生产环境不允许模拟支付'\n      });\n    }\n    \n    const { paymentId } = req.params;\n    \n    // 检查权限\n    const paymentInfo = await paymentService.getPaymentInfo(paymentId);\n    if (paymentInfo.userId && paymentInfo.userId !== req.user.id) {\n      return res.status(403).json({\n        success: false,\n        message: '无权模拟此支付'\n      });\n    }\n    \n    await paymentService.simulatePaymentSuccess(paymentId);\n    \n    res.json({\n      success: true,\n      message: '模拟支付成功'\n    });\n  })\n);\n\n/**\n * 获取支付服务状态\n */\nrouter.get('/status',\n  asyncHandler(async (req, res) => {\n    const status = paymentService.getStatus();\n    \n    res.json({\n      success: true,\n      message: '获取支付服务状态成功',\n      data: status\n    });\n  })\n);\n\nexport default router;
 //# sourceMappingURL=payment.js.map

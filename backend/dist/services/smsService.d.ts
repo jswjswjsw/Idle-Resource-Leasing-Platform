@@ -1,62 +1,43 @@
 /**
- * 短信服务类
- * 负责处理所有短信发送相关的功能
- * 支持阿里云短信服务和腾讯云短信服务
+ * 短信服务配置
+ * 支持阿里云短信服务（提供免费额度）
+ * 也支持其他免费短信服务作为备选
  */
-export declare class SmsService {
-    private provider;
-    private accessKeyId;
-    private accessKeySecret;
-    private signName;
-    private templateCode;
-    constructor();
-    /**
-     * 发送短信验证码
-     * @param phone 手机号
-     * @param code 验证码
-     */
-    sendVerificationCode(phone: string, code: string): Promise<void>;
-    /**
-     * 使用阿里云发送短信
-     * @param phone 手机号
-     * @param code 验证码
-     */
-    private sendAliyunSms;
-    /**
-     * 使用腾讯云发送短信
-     * @param phone 手机号
-     * @param code 验证码
-     */
-    private sendTencentSms;
-    /**
-     * 模拟发送短信（开发环境使用）
-     * @param phone 手机号
-     * @param code 验证码
-     */
-    private mockSendSms;
-    /**
-     * 验证手机号格式
-     * @param phone 手机号
-     */
-    validatePhoneNumber(phone: string): boolean;
-    /**
-     * 发送订单状态通知短信
-     * @param phone 手机号
-     * @param orderInfo 订单信息
-     */
-    sendOrderNotification(phone: string, orderInfo: any): Promise<void>;
-    /**
-     * 检查短信服务配置
-     */
-    checkConfiguration(): boolean;
-    /**
-     * 获取短信发送限制信息
-     */
-    getSendLimits(): {
-        dailyLimit: number;
-        hourlyLimit: number;
-        intervalLimit: number;
-    };
+export interface SmsTemplate {
+    code: string;
+    content: string;
 }
-export declare const smsService: SmsService;
+export interface SmsOptions {
+    phone: string;
+    template: string;
+    params?: Record<string, string>;
+}
+/**
+ * 发送短信
+ */
+export declare function sendSms(options: SmsOptions): Promise<boolean>;
+/**
+ * 发送验证码短信
+ */
+export declare function sendVerificationSms(phone: string, code: string, expireMinutes?: number): Promise<boolean>;
+/**
+ * 发送密码重置短信
+ */
+export declare function sendPasswordResetSms(phone: string, code: string, expireMinutes?: number): Promise<boolean>;
+/**
+ * 发送登录通知短信
+ */
+export declare function sendLoginNotificationSms(phone: string): Promise<boolean>;
+/**
+ * 发送订单通知短信
+ */
+export declare function sendOrderNotificationSms(phone: string, orderNumber: string, action: string): Promise<boolean>;
+/**
+ * 短信服务状态检查
+ */
+export declare function getSmsServiceStatus(): {
+    available: boolean;
+    configured: boolean;
+    type: string;
+};
 //# sourceMappingURL=smsService.d.ts.map

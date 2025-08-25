@@ -18,10 +18,10 @@ export declare class OrderService {
                     updatedAt: Date;
                     name: string;
                     description: string | null;
+                    sortOrder: number;
                     nameEn: string | null;
                     icon: string | null;
                     parentId: string | null;
-                    sortOrder: number;
                 };
                 owner: {
                     id: string;
@@ -98,10 +98,10 @@ export declare class OrderService {
                 updatedAt: Date;
                 name: string;
                 description: string | null;
+                sortOrder: number;
                 nameEn: string | null;
                 icon: string | null;
                 parentId: string | null;
-                sortOrder: number;
             };
             owner: {
                 id: string;
@@ -151,11 +151,11 @@ export declare class OrderService {
             updatedAt: Date;
             type: string;
             orderId: string;
-            metadata: string | null;
+            content: string;
             senderId: string;
             receiverId: string;
-            content: string;
             isRead: boolean;
+            metadata: string | null;
         }[];
     } & {
         id: string;
@@ -184,10 +184,10 @@ export declare class OrderService {
                 updatedAt: Date;
                 name: string;
                 description: string | null;
+                sortOrder: number;
                 nameEn: string | null;
                 icon: string | null;
                 parentId: string | null;
-                sortOrder: number;
             };
             owner: {
                 id: string;
@@ -250,10 +250,10 @@ export declare class OrderService {
                 updatedAt: Date;
                 name: string;
                 description: string | null;
+                sortOrder: number;
                 nameEn: string | null;
                 icon: string | null;
                 parentId: string | null;
-                sortOrder: number;
             };
             owner: {
                 id: string;
@@ -329,11 +329,11 @@ export declare class OrderService {
             deposit: import("@prisma/client/runtime/library").Decimal;
         };
         owner: {
+            password: string | null;
             id: string;
             username: string;
             email: string;
             phone: string | null;
-            password: string | null;
             avatar: string | null;
             creditScore: number;
             verified: boolean;
@@ -344,11 +344,11 @@ export declare class OrderService {
             updatedAt: Date;
         };
         renter: {
+            password: string | null;
             id: string;
             username: string;
             email: string;
             phone: string | null;
-            password: string | null;
             avatar: string | null;
             creditScore: number;
             verified: boolean;
@@ -385,10 +385,10 @@ export declare class OrderService {
                 updatedAt: Date;
                 name: string;
                 description: string | null;
+                sortOrder: number;
                 nameEn: string | null;
                 icon: string | null;
                 parentId: string | null;
-                sortOrder: number;
             };
             owner: {
                 id: string;
@@ -451,10 +451,10 @@ export declare class OrderService {
                 updatedAt: Date;
                 name: string;
                 description: string | null;
+                sortOrder: number;
                 nameEn: string | null;
                 icon: string | null;
                 parentId: string | null;
-                sortOrder: number;
             };
         } & {
             id: string;

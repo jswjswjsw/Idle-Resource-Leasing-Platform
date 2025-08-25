@@ -41,8 +41,8 @@ export declare const extendedPrisma: import("@prisma/client/runtime/library").Dy
                     createdAt: Date;
                     updatedAt: Date;
                     name: string;
-                    userId: string;
                     type: string;
+                    userId: string;
                     isDefault: boolean;
                     details: string;
                     isValid: boolean;
@@ -59,11 +59,11 @@ export declare const extendedPrisma: import("@prisma/client/runtime/library").Dy
                     isDefault: boolean;
                 }[];
             } & {
+                password: string | null;
                 id: string;
                 username: string;
                 email: string;
                 phone: string | null;
-                password: string | null;
                 avatar: string | null;
                 creditScore: number;
                 verified: boolean;
@@ -83,10 +83,10 @@ export declare const extendedPrisma: import("@prisma/client/runtime/library").Dy
                     updatedAt: Date;
                     name: string;
                     description: string | null;
+                    sortOrder: number;
                     nameEn: string | null;
                     icon: string | null;
                     parentId: string | null;
-                    sortOrder: number;
                 };
                 owner: {
                     id: string;
@@ -139,8 +139,8 @@ export declare const extendedPrisma: import("@prisma/client/runtime/library").Dy
                     createdAt: Date;
                     updatedAt: Date;
                     name: string;
-                    userId: string;
                     type: string;
+                    userId: string;
                     isDefault: boolean;
                     details: string;
                     isValid: boolean;
@@ -157,11 +157,11 @@ export declare const extendedPrisma: import("@prisma/client/runtime/library").Dy
                     isDefault: boolean;
                 }[];
             } & {
+                password: string | null;
                 id: string;
                 username: string;
                 email: string;
                 phone: string | null;
-                password: string | null;
                 avatar: string | null;
                 creditScore: number;
                 verified: boolean;
@@ -181,10 +181,10 @@ export declare const extendedPrisma: import("@prisma/client/runtime/library").Dy
                     updatedAt: Date;
                     name: string;
                     description: string | null;
+                    sortOrder: number;
                     nameEn: string | null;
                     icon: string | null;
                     parentId: string | null;
-                    sortOrder: number;
                 };
                 owner: {
                     id: string;

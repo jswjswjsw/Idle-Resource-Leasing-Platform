@@ -1,4 +1,54 @@
 /**
+ * 验证码类型
+ */
+export type VerificationType = 'email' | 'sms';
+/**
+ * 验证码场景
+ */
+export type VerificationScene = 'register' | 'login' | 'reset_password' | 'change_phone' | 'change_email';
+/**
+ * 发送邮箱验证码
+ */
+export declare function sendEmailVerification(email: string, username: string, scene?: VerificationScene): Promise<{
+    success: boolean;
+    message: string;
+    nextSendTime?: number;
+}>;
+/**
+ * 发送短信验证码
+ */
+export declare function sendSmsVerification(phone: string, scene?: VerificationScene): Promise<{
+    success: boolean;
+    message: string;
+    nextSendTime?: number;
+}>;
+/**
+ * 验证验证码
+ */
+export declare function verifyCode(type: VerificationType, target: string, code: string, scene: VerificationScene): Promise<{
+    success: boolean;
+    message: string;
+    remainingAttempts?: number;
+}>;
+/**
+ * 清除验证码
+ */
+export declare function clearVerificationCode(type: VerificationType, target: string, scene: VerificationScene): Promise<void>;
+/**
+ * 获取验证码状态
+ */
+export declare function getVerificationStatus(type: VerificationType, target: string, scene: VerificationScene): Promise<{
+    exists: boolean;
+    canSend: boolean;
+    nextSendTime?: number;
+    remainingAttempts?: number;
+    dailyRemaining?: number;
+}>;
+/**
+ * 批量清理过期验证码（定时任务使用）
+ */
+export declare function cleanupExpiredCodes(): Promise<void>;
+/**
  * 验证码管理服务类
  * 提供验证码生成、发送、验证等功能
  */

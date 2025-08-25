@@ -16,11 +16,11 @@ export declare const chatService: {
         updatedAt: Date;
         type: string;
         orderId: string;
-        metadata: string | null;
+        content: string;
         senderId: string;
         receiverId: string;
-        content: string;
         isRead: boolean;
+        metadata: string | null;
     })[]>;
     sendMessage(data: {
         orderId: string;
@@ -40,11 +40,11 @@ export declare const chatService: {
         updatedAt: Date;
         type: string;
         orderId: string;
-        metadata: string | null;
+        content: string;
         senderId: string;
         receiverId: string;
-        content: string;
         isRead: boolean;
+        metadata: string | null;
     }>;
     markAsRead(messageId: string, userId: string): Promise<{
         success: boolean;
@@ -62,11 +62,11 @@ export declare const chatService: {
         updatedAt: Date;
         type: string;
         orderId: string;
-        metadata: string | null;
+        content: string;
         senderId: string;
         receiverId: string;
-        content: string;
         isRead: boolean;
+        metadata: string | null;
     }) | null>;
     getUserChatOrders(userId: string): Promise<({
         resource: {

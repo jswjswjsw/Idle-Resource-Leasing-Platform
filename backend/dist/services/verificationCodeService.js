@@ -1,7 +1,388 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verificationCodeService = exports.VerificationCodeService = void 0;
+exports.sendEmailVerification = sendEmailVerification;
+exports.sendSmsVerification = sendSmsVerification;
+exports.verifyCode = verifyCode;
+exports.clearVerificationCode = clearVerificationCode;
+exports.getVerificationStatus = getVerificationStatus;
+exports.cleanupExpiredCodes = cleanupExpiredCodes;
 const smsService_1 = require("./smsService");
+const cache_1 = require("@/config/cache");
+const logger_1 = require("@/middleware/logger");
+const emailService_1 = require("./emailService");
+const smsService_2 = require("./smsService");
+/**
+ * 默认配置
+ */
+const DEFAULT_CONFIG = {
+    register: {
+        length: 6,
+        expireMinutes: 10,
+        maxAttempts: 5,
+        sendInterval: 60,
+        dailyLimit: 10
+    },
+    login: {
+        length: 6,
+        expireMinutes: 5,
+        maxAttempts: 3,
+        sendInterval: 60,
+        dailyLimit: 5
+    },
+    reset_password: {
+        length: 6,
+        expireMinutes: 10,
+        maxAttempts: 5,
+        sendInterval: 120,
+        dailyLimit: 5
+    },
+    change_phone: {
+        length: 6,
+        expireMinutes: 10,
+        maxAttempts: 3,
+        sendInterval: 60,
+        dailyLimit: 3
+    },
+    change_email: {
+        length: 6,
+        expireMinutes: 10,
+        maxAttempts: 3,
+        sendInterval: 60,
+        dailyLimit: 3
+    }
+};
+/**
+ * 生成验证码
+ */
+function generateCode(length) {
+    const chars = '0123456789';
+    let code = '';
+    for (let i = 0; i < length; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+}
+/**
+ * 生成缓存键
+ */
+function getCacheKey(type, target, scene) {
+    return `${type === 'email' ? cache_1.CACHE_KEYS.EMAIL_CODE : cache_1.CACHE_KEYS.SMS_CODE}${target}:${scene}`;
+}
+/**
+ * 生成每日计数缓存键
+ */
+function getDailyCountKey(type, target) {
+    const today = new Date().toISOString().split('T')[0];
+    return `verification_count:${type}:${target}:${today}`;
+}
+/**
+ * 发送邮箱验证码
+ */
+async function sendEmailVerification(email, username, scene = 'register') {
+    try {
+        const config = DEFAULT_CONFIG[scene];
+        const cacheKey = getCacheKey('email', email, scene);
+        const dailyCountKey = getDailyCountKey('email', email);
+        // 检查每日发送限制
+        const dailyCount = await cache_1.cache.get(dailyCountKey) || 0;
+        if (dailyCount >= config.dailyLimit) {
+            return {
+                success: false,
+                message: `今日发送次数已达上限（${config.dailyLimit}次），请明天再试`
+            };
+        }
+        // 检查发送间隔
+        const existingRecord = await cache_1.cache.get(cacheKey);
+        if (existingRecord) {
+            const timeSinceLastSend = Date.now() - existingRecord.lastSendTime;
+            if (timeSinceLastSend < config.sendInterval * 1000) {
+                const remainingTime = Math.ceil((config.sendInterval * 1000 - timeSinceLastSend) / 1000);
+                return {
+                    success: false,
+                    message: `请等待 ${remainingTime} 秒后再次发送`,
+                    nextSendTime: Date.now() + (remainingTime * 1000)
+                };
+            }
+        }
+        // 生成验证码
+        const code = generateCode(config.length);
+        const now = Date.now();
+        // 创建或更新验证码记录
+        const record = {
+            code,
+            attempts: 0,
+            sendCount: (existingRecord?.sendCount || 0) + 1,
+            lastSendTime: now,
+            scene,
+            createdAt: now
+        };
+        // 存储验证码
+        await cache_1.cache.set(cacheKey, record, config.expireMinutes * 60);
+        // 更新每日计数
+        await cache_1.cache.set(dailyCountKey, dailyCount + 1, cache_1.CACHE_TTL.VERY_LONG);
+        // 发送邮件
+        const emailSent = await (0, emailService_1.sendVerificationEmail)(email, username, code, config.expireMinutes);
+        if (!emailSent) {
+            logger_1.winstonLogger.error('邮箱验证码发送失败', { email, scene });
+            return {
+                success: false,
+                message: '验证码发送失败，请稍后重试'
+            };
+        }
+        logger_1.winstonLogger.info('邮箱验证码发送成功', {
+            email: email.replace(/(.{2}).*(@.*)/, '$1****$2'),
+            scene,
+            sendCount: record.sendCount
+        });
+        return {
+            success: true,
+            message: '验证码已发送到您的邮箱，请查收',
+            nextSendTime: now + (config.sendInterval * 1000)
+        };
+    }
+    catch (error) {
+        logger_1.winstonLogger.error('发送邮箱验证码异常', {
+            email: email.replace(/(.{2}).*(@.*)/, '$1****$2'),
+            scene,
+            error: error.message
+        });
+        return {
+            success: false,
+            message: '验证码发送失败，请稍后重试'
+        };
+    }
+}
+/**
+ * 发送短信验证码
+ */
+async function sendSmsVerification(phone, scene = 'register') {
+    try {
+        const config = DEFAULT_CONFIG[scene];
+        const cacheKey = getCacheKey('sms', phone, scene);
+        const dailyCountKey = getDailyCountKey('sms', phone);
+        // 检查每日发送限制
+        const dailyCount = await cache_1.cache.get(dailyCountKey) || 0;
+        if (dailyCount >= config.dailyLimit) {
+            return {
+                success: false,
+                message: `今日发送次数已达上限（${config.dailyLimit}次），请明天再试`
+            };
+        }
+        // 检查发送间隔
+        const existingRecord = await cache_1.cache.get(cacheKey);
+        if (existingRecord) {
+            const timeSinceLastSend = Date.now() - existingRecord.lastSendTime;
+            if (timeSinceLastSend < config.sendInterval * 1000) {
+                const remainingTime = Math.ceil((config.sendInterval * 1000 - timeSinceLastSend) / 1000);
+                return {
+                    success: false,
+                    message: `请等待 ${remainingTime} 秒后再次发送`,
+                    nextSendTime: Date.now() + (remainingTime * 1000)
+                };
+            }
+        }
+        // 生成验证码
+        const code = generateCode(config.length);
+        const now = Date.now();
+        // 创建或更新验证码记录
+        const record = {
+            code,
+            attempts: 0,
+            sendCount: (existingRecord?.sendCount || 0) + 1,
+            lastSendTime: now,
+            scene,
+            createdAt: now
+        };
+        // 存储验证码
+        await cache_1.cache.set(cacheKey, record, config.expireMinutes * 60);
+        // 更新每日计数
+        await cache_1.cache.set(dailyCountKey, dailyCount + 1, cache_1.CACHE_TTL.VERY_LONG);
+        // 发送短信
+        const smsSent = await (0, smsService_2.sendVerificationSms)(phone, code, config.expireMinutes);
+        if (!smsSent) {
+            logger_1.winstonLogger.error('短信验证码发送失败', { phone: phone.replace(/(\\d{3})\\d{4}(\\d{4})/, '$1****$2'), scene });
+            return {
+                success: false,
+                message: '验证码发送失败，请稍后重试'
+            };
+        }
+        logger_1.winstonLogger.info('短信验证码发送成功', {
+            phone: phone.replace(/(\\d{3})\\d{4}(\\d{4})/, '$1****$2'),
+            scene,
+            sendCount: record.sendCount
+        });
+        return {
+            success: true,
+            message: '验证码已发送到您的手机，请查收',
+            nextSendTime: now + (config.sendInterval * 1000)
+        };
+    }
+    catch (error) {
+        logger_1.winstonLogger.error('发送短信验证码异常', {
+            phone: phone.replace(/(\\d{3})\\d{4}(\\d{4})/, '$1****$2'),
+            scene,
+            error: error.message
+        });
+        return {
+            success: false,
+            message: '验证码发送失败，请稍后重试'
+        };
+    }
+}
+/**
+ * 验证验证码
+ */
+async function verifyCode(type, target, code, scene) {
+    try {
+        const config = DEFAULT_CONFIG[scene];
+        const cacheKey = getCacheKey(type, target, scene);
+        // 获取验证码记录
+        const record = await cache_1.cache.get(cacheKey);
+        if (!record) {
+            return {
+                success: false,
+                message: '验证码不存在或已过期，请重新获取'
+            };
+        }
+        // 检查尝试次数
+        if (record.attempts >= config.maxAttempts) {
+            await cache_1.cache.del(cacheKey); // 删除已超限的验证码
+            return {
+                success: false,
+                message: '验证次数已达上限，请重新获取验证码'
+            };
+        }
+        // 验证码比对
+        if (record.code !== code) {
+            // 增加尝试次数
+            record.attempts += 1;
+            const remainingMinutes = Math.ceil((record.createdAt + config.expireMinutes * 60 * 1000 - Date.now()) / 60000);
+            await cache_1.cache.set(cacheKey, record, remainingMinutes * 60);
+            const remainingAttempts = config.maxAttempts - record.attempts;
+            logger_1.winstonLogger.warn('验证码验证失败', {
+                type,
+                target: type === 'email' ? target.replace(/(.{2}).*(@.*)/, '$1****$2') : target.replace(/(\\d{3})\\d{4}(\\d{4})/, '$1****$2'),
+                scene,
+                attempts: record.attempts,
+                remainingAttempts
+            });
+            return {
+                success: false,
+                message: `验证码错误，还可尝试 ${remainingAttempts} 次`,
+                remainingAttempts
+            };
+        }
+        // 验证成功，删除验证码
+        await cache_1.cache.del(cacheKey);
+        logger_1.winstonLogger.info('验证码验证成功', {
+            type,
+            target: type === 'email' ? target.replace(/(.{2}).*(@.*)/, '$1****$2') : target.replace(/(\\d{3})\\d{4}(\\d{4})/, '$1****$2'),
+            scene,
+            attempts: record.attempts + 1
+        });
+        return {
+            success: true,
+            message: '验证码验证成功'
+        };
+    }
+    catch (error) {
+        logger_1.winstonLogger.error('验证验证码异常', {
+            type,
+            target: type === 'email' ? target.replace(/(.{2}).*(@.*)/, '$1****$2') : target.replace(/(\\d{3})\\d{4}(\\d{4})/, '$1****$2'),
+            scene,
+            error: error.message
+        });
+        return {
+            success: false,
+            message: '验证过程出错，请稍后重试'
+        };
+    }
+}
+/**
+ * 清除验证码
+ */
+async function clearVerificationCode(type, target, scene) {
+    try {
+        const cacheKey = getCacheKey(type, target, scene);
+        await cache_1.cache.del(cacheKey);
+        logger_1.winstonLogger.info('验证码已清除', {
+            type,
+            target: type === 'email' ? target.replace(/(.{2}).*(@.*)/, '$1****$2') : target.replace(/(\\d{3})\\d{4}(\\d{4})/, '$1****$2'),
+            scene
+        });
+    }
+    catch (error) {
+        logger_1.winstonLogger.error('清除验证码异常', {
+            type,
+            target,
+            scene,
+            error: error.message
+        });
+    }
+}
+/**
+ * 获取验证码状态
+ */
+async function getVerificationStatus(type, target, scene) {
+    try {
+        const config = DEFAULT_CONFIG[scene];
+        const cacheKey = getCacheKey(type, target, scene);
+        const dailyCountKey = getDailyCountKey(type, target);
+        // 获取验证码记录
+        const record = await cache_1.cache.get(cacheKey);
+        // 获取每日发送计数
+        const dailyCount = await cache_1.cache.get(dailyCountKey) || 0;
+        const dailyRemaining = Math.max(0, config.dailyLimit - dailyCount);
+        if (!record) {
+            return {
+                exists: false,
+                canSend: dailyRemaining > 0,
+                dailyRemaining
+            };
+        }
+        // 检查是否可以发送新验证码
+        const timeSinceLastSend = Date.now() - record.lastSendTime;
+        const canSend = timeSinceLastSend >= config.sendInterval * 1000 && dailyRemaining > 0;
+        const nextSendTime = canSend ? undefined : record.lastSendTime + config.sendInterval * 1000;
+        // 剩余尝试次数
+        const remainingAttempts = Math.max(0, config.maxAttempts - record.attempts);
+        return {
+            exists: true,
+            canSend,
+            nextSendTime,
+            remainingAttempts,
+            dailyRemaining
+        };
+    }
+    catch (error) {
+        logger_1.winstonLogger.error('获取验证码状态异常', {
+            type,
+            target,
+            scene,
+            error: error.message
+        });
+        return {
+            exists: false,
+            canSend: false
+        };
+    }
+}
+/**
+ * 批量清理过期验证码（定时任务使用）
+ */
+async function cleanupExpiredCodes() {
+    try {
+        // 清理邮箱验证码
+        await cache_1.cache.delPattern(`${cache_1.CACHE_KEYS.EMAIL_CODE}*`);
+        // 清理短信验证码
+        await cache_1.cache.delPattern(`${cache_1.CACHE_KEYS.SMS_CODE}*`);
+        logger_1.winstonLogger.info('过期验证码清理完成');
+    }
+    catch (error) {
+        logger_1.winstonLogger.error('清理过期验证码异常', { error: error.message });
+    }
+}
 // 内存存储验证码（生产环境建议使用Redis）
 const verificationCodes = new Map();
 // 手机号发送频率限制（每个手机号每分钟最多发送1次）
