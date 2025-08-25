@@ -1,8 +1,8 @@
 # 使用现有阿里云ECS资源部署脚本
 
 # 阿里云配置
-$ACCESS_KEY_ID = "LTAI5tSApCkhMZTuujKHYt3r"
-$ACCESS_KEY_SECRET = "qGLVQsrFCvhPZ6PD8dN36sHqhY76mV"
+$ACCESS_KEY_ID = $env:ALIYUN_ACCESS_KEY_ID # 请设置环境变量
+$ACCESS_KEY_SECRET = $env:ALIYUN_ACCESS_KEY_SECRET # 请设置环境变量
 $REGION = "cn-hangzhou"
 
 Write-Host "🔍 检查现有阿里云ECS资源" -ForegroundColor Cyan

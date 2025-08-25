@@ -1,7 +1,7 @@
 # Check existing Aliyun ECS resources
 
-$ACCESS_KEY_ID = "LTAI5tSApCkhMZTuujKHYt3r"
-$ACCESS_KEY_SECRET = "qGLVQsrFCvhPZ6PD8dN36sHqhY76mV"
+$ACCESS_KEY_ID = $env:ALIYUN_ACCESS_KEY_ID # 请设置环境变量
+$ACCESS_KEY_SECRET = $env:ALIYUN_ACCESS_KEY_SECRET # 请设置环境变量
 $REGION = "cn-hangzhou"
 
 Write-Host "Checking existing Aliyun ECS resources..." -ForegroundColor Cyan
